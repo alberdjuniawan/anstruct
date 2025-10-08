@@ -7,7 +7,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/yourorg/anstruct/internal/core"
+	"github.com/alberdjuniawan/anstruct/internal/core"
 )
 
 type Parser struct{}
