@@ -9,57 +9,102 @@ import (
 
 	"github.com/alberdjuniawan/anstruct"
 	"github.com/alberdjuniawan/anstruct/internal/core"
+	"github.com/spf13/cobra"
 )
 
 func main() {
-	var (
-		endpoint     = flag.String("endpoint", "https://anstruct-ai-proxy.anstruct.workers.dev", "AI proxy endpoint")
-		historyPath  = flag.String("history", ".anstruct/history.log", "history log path")
-		outputDir    = flag.String("out", ".", "output directory")
-		reverseDir   = flag.String("reverse", "", "reverse project dir")
-		blueprintOut = flag.String("blueprint", "reversed.struct", "output blueprint path")
-		dryRun       = flag.Bool("dry", false, "dry run (no files created)")
-		force        = flag.Bool("force", false, "overwrite existing files")
-		watch        = flag.Bool("watch", false, "watch project and blueprint for changes")
-		verbose      = flag.Bool("v", false, "verbose logging")
-	)
-	flag.Parse()
-
-	ctx := context.Background()
-	svc := anstruct.NewService(*endpoint, *historyPath)
-
-	// Reverse mode
-	if *reverseDir != "" {
-		if err := svc.ReverseProject(ctx, *reverseDir, *blueprintOut); err != nil {
-			fmt.Println("Reverse error:", err)
-			os.Exit(1)
-		}
-		fmt.Println("Blueprint written to", *blueprintOut)
-		return
+	if len(os.Args) < 2 {
+		fmt.Println("Usage: anstruct <command> [options]")
+		fmt.Println("Commands: aistruct, mstruct, rstruct, watch")
+		os.Exit(1)
 	}
 
-	// Watch mode
-	if *watch {
-		fmt.Println("Watching project:", *outputDir, "and blueprint:", *blueprintOut)
-		if err := svc.Watch(ctx, *outputDir, *blueprintOut, 2*time.Second, *verbose); err != nil {
+	cmd := os.Args[1]
+	args := os.Args[2:]
+
+	ctx := context.Background()
+	endpoint := "https://anstruct-ai-proxy.anstruct.workers.dev"
+	historyPath := ".anstruct/history.log"
+	svc := anstruct.NewService(endpoint, historyPath)
+	rootCmd := &cobra.Command{Use: "anstruct"}
+	rootCmd.AddCommand(newWatchCmd(svc))
+
+	switch cmd {
+
+	case "aistruct":
+		fs := flag.NewFlagSet("aistruct", flag.ExitOnError)
+		outFile := fs.String("out", "aistruct.struct", "output .struct file")
+		fs.Parse(args)
+		if fs.NArg() == 0 {
+			fmt.Println("Usage: anstruct aistruct [options] <prompt>")
+			os.Exit(1)
+		}
+		prompt := fs.Arg(0)
+		if err := svc.AIStruct(ctx, prompt, *outFile); err != nil {
+			fmt.Println("AIStruct error:", err)
+			os.Exit(1)
+		}
+		fmt.Println("Blueprint written to", *outFile)
+
+	case "mstruct":
+		fs := flag.NewFlagSet("mstruct", flag.ExitOnError)
+		outDir := fs.String("out", ".", "output directory")
+
+		var dry bool
+		var force bool
+		fs.BoolVar(&dry, "dry", false, "dry run")
+		fs.BoolVar(&force, "force", false, "overwrite existing files")
+
+		fs.Parse(args)
+		if fs.NArg() == 0 {
+			fmt.Println("Usage: anstruct mstruct [options] <file.struct>")
+			os.Exit(1)
+		}
+		structFile := fs.Arg(0)
+		receipt, err := svc.MStruct(ctx, structFile, *outDir, core.GenerateOptions{DryRun: dry, Force: force})
+		if err != nil {
+			fmt.Println("MStruct error:", err)
+			os.Exit(1)
+		}
+		fmt.Println("Generated:", receipt.CreatedDirs, receipt.CreatedFiles)
+
+	case "rstruct":
+		fs := flag.NewFlagSet("rstruct", flag.ExitOnError)
+		fs.Parse(args)
+		if fs.NArg() == 0 {
+			fmt.Println("Usage: anstruct rstruct <folder>")
+			os.Exit(1)
+		}
+		folder := fs.Arg(0)
+		outFile, err := svc.RStruct(ctx, folder)
+		if err != nil {
+			fmt.Println("RStruct error:", err)
+			os.Exit(1)
+		}
+		fmt.Println("Blueprint written to", outFile)
+
+	case "watch":
+		fs := flag.NewFlagSet("watch", flag.ExitOnError)
+		verbose := fs.Bool("v", false, "verbose logging")
+		debounce := fs.Duration("debounce", 2*time.Second, "debounce interval")
+		fs.Parse(args)
+
+		if fs.NArg() < 2 {
+			fmt.Println("Usage: anstruct watch [options] <projectDir> <blueprintFile>")
+			os.Exit(1)
+		}
+		project := fs.Arg(0)
+		blueprint := fs.Arg(1)
+
+		fmt.Println("Watching project:", project, "and blueprint:", blueprint)
+		if err := svc.Watch(ctx, project, blueprint, *debounce, *verbose); err != nil {
 			fmt.Println("Watch error:", err)
 			os.Exit(1)
 		}
-		return
-	}
 
-	// Generate mode
-	if flag.NArg() == 0 {
-		fmt.Println("Usage: anstruct [options] <prompt>")
-		flag.PrintDefaults()
+	default:
+		fmt.Println("Unknown command:", cmd)
+		fmt.Println("Commands: aistruct, mstruct, rstruct, watch")
 		os.Exit(1)
 	}
-
-	prompt := flag.Arg(0)
-	receipt, err := svc.GenerateFromPrompt(ctx, prompt, *outputDir, core.GenerateOptions{DryRun: *dryRun, Force: *force})
-	if err != nil {
-		fmt.Println("Generate error:", err)
-		os.Exit(1)
-	}
-	fmt.Println("Generated:", receipt.CreatedDirs, receipt.CreatedFiles)
 }
