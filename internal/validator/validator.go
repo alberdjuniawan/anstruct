@@ -3,6 +3,7 @@ package validator
 import (
 	"context"
 	"errors"
+	"path/filepath"
 	"strings"
 
 	"github.com/alberdjuniawan/anstruct/internal/core"
@@ -25,6 +26,12 @@ func (v *Validator) Validate(ctx context.Context, tree *core.Tree) error {
 
 		if isReserved(n.Name) {
 			err = errors.New("reserved name: " + n.Name)
+			return
+		}
+
+		// cek traversal pakai OriginalName (nama mentah dari parser)
+		if isTraversal(n.OriginalName) {
+			err = errors.New("path traversal detected: " + n.OriginalName)
 			return
 		}
 	})
@@ -55,4 +62,12 @@ func isReserved(name string) bool {
 		}
 	}
 	return false
+}
+
+func isTraversal(raw string) bool {
+	if raw == "" {
+		return true
+	}
+	clean := filepath.Clean(raw)
+	return strings.HasPrefix(clean, "..") || filepath.IsAbs(clean)
 }
