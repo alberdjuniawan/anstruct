@@ -3,6 +3,7 @@ package parser
 import (
 	"bufio"
 	"context"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -28,7 +29,11 @@ func (p *Parser) Parse(ctx context.Context, blueprintPath string) (*core.Tree, e
 		node  *core.Node
 		depth int
 	}
-	root := &core.Node{Type: core.NodeDir, Name: filepath.Base(strings.TrimSuffix(blueprintPath, filepath.Ext(blueprintPath)))}
+	root := &core.Node{
+		Type:         core.NodeDir,
+		Name:         filepath.Base(strings.TrimSuffix(blueprintPath, filepath.Ext(blueprintPath))),
+		OriginalName: filepath.Base(strings.TrimSuffix(blueprintPath, filepath.Ext(blueprintPath))),
+	}
 	stack := []frame{{node: root, depth: -1}}
 
 	for scanner.Scan() {
@@ -37,15 +42,16 @@ func (p *Parser) Parse(ctx context.Context, blueprintPath string) (*core.Tree, e
 			continue // skip kosong & komentar
 		}
 
-		depth := countTabs(line)
+		depth := countIndent(line)
 		entry := strings.TrimSpace(line)
 		isFile := strings.Contains(entry, ".")
 		name := sanitize(entry)
 
 		n := &core.Node{
-			Type:    core.NodeDir,
-			Name:    name,
-			Content: "",
+			Type:         core.NodeDir,
+			Name:         name,
+			OriginalName: entry,
+			Content:      "",
 		}
 		if isFile {
 			n.Type = core.NodeFile
@@ -80,23 +86,47 @@ func (p *Parser) Write(ctx context.Context, tree *core.Tree, path string) error 
 
 // --- helpers ---
 
-func countTabs(s string) int {
-	i := 0
+var warnedSpaces bool
+
+// countIndent: fleksibel, bisa tab atau spasi
+func countIndent(s string) int {
+	count := 0
+	spaces := 0
+
 	for _, r := range s {
 		if r == '\t' {
-			i++
+			count++
+			spaces = 0
+		} else if r == ' ' {
+			spaces++
+			if spaces == 2 { // anggap 2 spasi = 1 indent
+				count++
+				spaces = 0
+			}
+			if !warnedSpaces {
+				fmt.Println("⚠️  Warning: indentasi pakai spasi, disarankan pakai tab untuk konsistensi")
+				warnedSpaces = true
+			}
 		} else {
 			break
 		}
 	}
-	return i
+	return count
 }
 
 func sanitize(name string) string {
-	// anti path traversal
 	name = strings.TrimSpace(name)
-	name = strings.ReplaceAll(name, "..", "")
-	name = strings.ReplaceAll(name, string(os.PathSeparator), "-")
+	if name == "" {
+		return "_"
+	}
+	// cegah traversal
+	clean := filepath.Clean(name)
+	if strings.HasPrefix(clean, "..") || filepath.IsAbs(clean) {
+		return strings.ReplaceAll(name, "..", "_")
+	}
+	// ganti path separator
+	name = strings.ReplaceAll(name, "/", "-")
+	name = strings.ReplaceAll(name, "\\", "-")
 	return name
 }
 
