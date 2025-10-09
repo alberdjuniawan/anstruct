@@ -5,6 +5,8 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/alberdjuniawan/anstruct"
@@ -70,18 +72,45 @@ func main() {
 
 	case "rstruct":
 		fs := flag.NewFlagSet("rstruct", flag.ExitOnError)
+		outFile := fs.String("out", "", "output .struct file (default: ./<folder>.struct)")
 		fs.Parse(args)
 		if fs.NArg() == 0 {
-			fmt.Println("Usage: anstruct rstruct <folder>")
+			fmt.Println("Usage: anstruct rstruct [options] <folder>")
 			os.Exit(1)
 		}
 		folder := fs.Arg(0)
-		outFile, err := svc.RStruct(ctx, folder)
-		if err != nil {
+
+		// Tentukan path output sesuai rules
+		if *outFile == "" {
+			base := filepath.Base(folder)
+			*outFile = filepath.Join(".", base+".struct")
+		} else {
+			cleaned := filepath.Clean(*outFile)
+			if strings.HasSuffix(cleaned, ".struct") {
+				*outFile = cleaned
+			} else {
+				base := filepath.Base(folder)
+				// bedanya di sini 👇
+				*outFile = filepath.Join(cleaned, base) + ".struct"
+			}
+		}
+
+		fmt.Println("DEBUG main.go resolved outFile =", *outFile)
+
+		if err := svc.RStruct(ctx, folder, *outFile); err != nil {
 			fmt.Println("RStruct error:", err)
 			os.Exit(1)
 		}
-		fmt.Println("Blueprint written to", outFile)
+
+		fmt.Println("Blueprint written to", *outFile)
+
+		absOut, _ := filepath.Abs(*outFile)
+		absFolder, _ := filepath.Abs(folder)
+		if filepath.Dir(absOut) == absFolder {
+			fmt.Println("Note: .struct file is inside the project folder. It will not be listed in the blueprint itself, and watcher will ignore it.")
+		} else {
+			fmt.Println("Tip: use -out <folder> if you want the blueprint inside the project folder, or -out <file.struct> for a custom name.")
+		}
 
 	case "watch":
 		fs := flag.NewFlagSet("watch", flag.ExitOnError)
