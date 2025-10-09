@@ -8,20 +8,21 @@ const (
 	NodeFile NodeType = "file"
 )
 
-// Node: tree node
+// Node: node dalam tree blueprint
 type Node struct {
-	Type     NodeType
-	Name     string
-	Content  string
-	Children []*Node
+	Type         NodeType
+	Name         string
+	Content      string
+	Children     []*Node
+	OriginalName string
 }
 
-// Tree: root node
+// Tree: representasi blueprint project
 type Tree struct {
 	Root *Node
 }
 
-// GenerateOptions: control file generation
+// GenerateOptions: opsi saat generate folder
 type GenerateOptions struct {
 	DryRun bool
 	Force  bool
