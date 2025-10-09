@@ -13,15 +13,23 @@ type Generator struct{}
 
 func New() *Generator { return &Generator{} }
 
+// Generate: bikin folder/file sesuai blueprint.
+// Tidak otomatis full sync (aman untuk mstruct).
+// Full sync hanya dipakai di mode watch (svc.Watch).
 func (g *Generator) Generate(ctx context.Context, tree *core.Tree, outputDir string, opts core.GenerateOptions) (core.Receipt, error) {
-	if hasTraversal(outputDir) {
-		return core.Receipt{}, core.ErrPathTraversal
-	}
 	receipt := core.Receipt{}
-	err := writeNode(tree.Root, outputDir, opts, &receipt)
-	return receipt, err
+
+	// generate semua anak root langsung ke outputDir
+	for _, c := range tree.Root.Children {
+		if err := writeNode(c, outputDir, opts, &receipt); err != nil {
+			return receipt, err
+		}
+	}
+
+	return receipt, nil
 }
 
+// writeNode: tulis node ke disk
 func writeNode(n *core.Node, base string, opts core.GenerateOptions, r *core.Receipt) error {
 	target := filepath.Join(base, n.Name)
 
@@ -38,21 +46,29 @@ func writeNode(n *core.Node, base string, opts core.GenerateOptions, r *core.Rec
 				return err
 			}
 		}
+
 	case core.NodeFile:
 		if !opts.DryRun {
-			flags := os.O_CREATE | os.O_WRONLY
-			if opts.Force {
-				flags |= os.O_TRUNC
-			} else {
+			// cek dulu: kalau file sudah ada dan isinya sama → skip
+			if !opts.Force {
 				if _, err := os.Stat(target); err == nil {
 					return errors.New("file exists: " + target)
 				}
+			} else {
+				if existing, err := os.ReadFile(target); err == nil {
+					if string(existing) == n.Content {
+						// isi sama → skip tulis
+						return nil
+					}
+				}
 			}
-			f, err := os.OpenFile(target, flags, 0o644)
+
+			f, err := os.OpenFile(target, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o644)
 			if err != nil {
 				return err
 			}
 			defer f.Close()
+
 			if _, err := f.WriteString(n.Content); err != nil {
 				return err
 			}
@@ -60,9 +76,4 @@ func writeNode(n *core.Node, base string, opts core.GenerateOptions, r *core.Rec
 		r.CreatedFiles = append(r.CreatedFiles, target)
 	}
 	return nil
-}
-
-func hasTraversal(p string) bool {
-	clean := filepath.Clean(p)
-	return clean == ".." || clean == "." || len(clean) == 0
 }
