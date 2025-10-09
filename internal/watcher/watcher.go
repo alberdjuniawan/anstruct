@@ -2,6 +2,7 @@ package watcher
 
 import (
 	"context"
+	"fmt"
 	"log"
 	"os"
 	"path/filepath"
@@ -24,6 +25,19 @@ type Watcher struct{}
 func New() *Watcher { return &Watcher{} }
 
 func (w *Watcher) Run(ctx context.Context, cfg SyncConfig, onFolder func(), onBlueprint func()) error {
+	// normalisasi path
+	projectAbs, err := filepath.Abs(cfg.ProjectPath)
+	if err != nil {
+		return fmt.Errorf("invalid project path: %w", err)
+	}
+	blueprintAbs, err := filepath.Abs(cfg.BlueprintPath)
+	if err != nil {
+		return fmt.Errorf("invalid blueprint path: %w", err)
+	}
+	if _, err := os.Stat(blueprintAbs); err != nil {
+		return fmt.Errorf("blueprint file not found: %s", blueprintAbs)
+	}
+
 	watcher, err := fsnotify.NewWatcher()
 	if err != nil {
 		return err
@@ -31,7 +45,7 @@ func (w *Watcher) Run(ctx context.Context, cfg SyncConfig, onFolder func(), onBl
 	defer watcher.Close()
 
 	// --- recursive watch untuk semua subdir ---
-	err = filepath.WalkDir(cfg.ProjectPath, func(path string, d os.DirEntry, err error) error {
+	err = filepath.WalkDir(projectAbs, func(path string, d os.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}
@@ -50,7 +64,10 @@ func (w *Watcher) Run(ctx context.Context, cfg SyncConfig, onFolder func(), onBl
 	}
 
 	// watch file blueprint
-	if err := watcher.Add(cfg.BlueprintPath); err != nil {
+	if cfg.Verbose {
+		log.Println("watching blueprint:", blueprintAbs)
+	}
+	if err := watcher.Add(blueprintAbs); err != nil {
 		return err
 	}
 
@@ -85,11 +102,10 @@ func (w *Watcher) Run(ctx context.Context, cfg SyncConfig, onFolder func(), onBl
 		case <-ctx.Done():
 			return ctx.Err()
 		case event := <-watcher.Events:
-			// filter event
 			if event.Op&(fsnotify.Write|fsnotify.Create|fsnotify.Remove|fsnotify.Rename) != 0 {
-				if sameFile(event.Name, cfg.BlueprintPath) {
+				if sameFile(event.Name, blueprintAbs) {
 					trigger("blueprint")
-				} else if strings.HasPrefix(event.Name, cfg.ProjectPath) {
+				} else if strings.HasPrefix(event.Name, projectAbs) {
 					trigger("folder")
 				}
 			}
