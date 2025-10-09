@@ -29,7 +29,7 @@ func (v *Validator) Validate(ctx context.Context, tree *core.Tree) error {
 			return
 		}
 
-		// cek traversal pakai OriginalName (nama mentah dari parser)
+		// check traversal using OriginalName (raw name from parser)
 		if isTraversal(n.OriginalName) {
 			err = errors.New("path traversal detected: " + n.OriginalName)
 			return
@@ -54,8 +54,10 @@ func walk(n *core.Node, prefix string, fn func(path string, n *core.Node)) {
 }
 
 func isReserved(name string) bool {
-	// bisa diperluas: .git, node_modules, vendor, dsb
 	reserved := []string{".git", "node_modules", "vendor"}
+	if strings.HasSuffix(strings.ToLower(name), ".struct") {
+		return true
+	}
 	for _, r := range reserved {
 		if strings.EqualFold(name, r) {
 			return true
