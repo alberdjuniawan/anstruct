@@ -35,13 +35,20 @@ func main() {
 
 	case "aistruct":
 		fs := flag.NewFlagSet("aistruct", flag.ExitOnError)
-		outFile := fs.String("out", "aistruct.struct", "output .struct file")
+		outFile := fs.String("out", "", "output .struct file")
 		fs.Parse(args)
+
 		if fs.NArg() == 0 {
 			fmt.Println("Usage: anstruct aistruct [options] <prompt>")
 			os.Exit(1)
 		}
 		prompt := fs.Arg(0)
+
+		// fallback default kalau user tidak kasih -out
+		if *outFile == "" {
+			*outFile = "aistruct.struct"
+		}
+
 		if err := svc.AIStruct(ctx, prompt, *outFile); err != nil {
 			fmt.Println("AIStruct error:", err)
 			os.Exit(1)
