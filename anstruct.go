@@ -15,14 +15,13 @@ import (
 	"github.com/alberdjuniawan/anstruct/internal/watcher"
 )
 
-// Facade: expose fungsi publik
 type Service struct {
-	Gen       core.Generator
+	Gen       core.Generator // AI generator (FromPrompt)
 	Parser    core.Parser
 	Reverser  core.Reverser
 	Validator core.Validator
 	History   core.History
-	Writer    *generator.Generator
+	Writer    *generator.Generator // file/folder generator
 }
 
 func NewService(endpoint, historyPath string) *Service {
@@ -37,8 +36,22 @@ func NewService(endpoint, historyPath string) *Service {
 	}
 }
 
-func (s *Service) GenerateFromPrompt(ctx context.Context, prompt, outputDir string, opts core.GenerateOptions) (core.Receipt, error) {
+// aistruct: prompt → .struct file
+func (s *Service) AIStruct(ctx context.Context, prompt, outFile string) error {
 	tree, err := s.Gen.FromPrompt(ctx, prompt)
+	if err != nil {
+		return err
+	}
+	if err := s.Parser.Write(ctx, tree, outFile); err != nil {
+		return err
+	}
+	_ = s.History.Record(ctx, core.Operation{Type: core.OpCreate, Target: outFile})
+	return nil
+}
+
+// mstruct: .struct file → folder
+func (s *Service) MStruct(ctx context.Context, structFile, outputDir string, opts core.GenerateOptions) (core.Receipt, error) {
+	tree, err := s.Parser.Parse(ctx, structFile)
 	if err != nil {
 		return core.Receipt{}, err
 	}
@@ -53,19 +66,21 @@ func (s *Service) GenerateFromPrompt(ctx context.Context, prompt, outputDir stri
 	return receipt, nil
 }
 
-func (s *Service) ReverseProject(ctx context.Context, inputDir, blueprintPath string) error {
+// rstruct: folder → .struct file
+func (s *Service) RStruct(ctx context.Context, inputDir string, outPath string) error {
+	fmt.Println("DEBUG RStruct outPath =", outPath)
 	tree, err := s.Reverser.Reverse(ctx, inputDir)
 	if err != nil {
 		return err
 	}
-	if err := s.Parser.Write(ctx, tree, blueprintPath); err != nil {
+	if err := s.Parser.Write(ctx, tree, outPath); err != nil {
 		return err
 	}
-	_ = s.History.Record(ctx, core.Operation{Type: core.OpReverse, Target: blueprintPath})
+	_ = s.History.Record(ctx, core.Operation{Type: core.OpReverse, Target: outPath})
 	return nil
 }
 
-// Watch: sinkronisasi folder <-> blueprint
+// watch: sinkronisasi folder <-> blueprint
 func (s *Service) Watch(ctx context.Context, projectPath, blueprintPath string, debounce time.Duration, verbose bool) error {
 	w := watcher.New()
 	cfg := watcher.SyncConfig{
@@ -75,17 +90,32 @@ func (s *Service) Watch(ctx context.Context, projectPath, blueprintPath string, 
 		Verbose:       verbose,
 	}
 	return w.Run(ctx, cfg,
+		// onFolder
 		func() {
-			// folder → blueprint
-			if err := s.ReverseProject(ctx, projectPath, blueprintPath); err != nil && verbose {
+			if err := s.RStruct(ctx, projectPath, blueprintPath); err != nil && verbose {
 				fmt.Println("Reverse error:", err)
 			}
 		},
+		// onBlueprint
 		func() {
-			// blueprint → folder
 			tree, err := s.Parser.Parse(ctx, blueprintPath)
 			if err == nil {
-				_, _ = s.Writer.Generate(ctx, tree, projectPath, core.GenerateOptions{Force: true})
+				receipt, genErr := s.Writer.Generate(ctx, tree, projectPath, core.GenerateOptions{Force: true})
+				if genErr == nil {
+					// full sync cleanup
+					allowed := map[string]bool{}
+					for _, c := range tree.Root.Children {
+						generator.CollectAllowed(c, "", allowed)
+					}
+					if err := generator.CleanupExtra(projectPath, allowed); err != nil && verbose {
+						fmt.Println("Cleanup error:", err)
+					}
+					if verbose {
+						fmt.Println("✅ Synced:", receipt.CreatedDirs, receipt.CreatedFiles)
+					}
+				} else if verbose {
+					fmt.Println("Generate error:", genErr)
+				}
 			} else if verbose {
 				fmt.Println("Parse error:", err)
 			}
