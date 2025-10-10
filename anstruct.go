@@ -68,7 +68,6 @@ func (s *Service) MStruct(ctx context.Context, structFile, outputDir string, opt
 
 // rstruct: folder → .struct file
 func (s *Service) RStruct(ctx context.Context, inputDir string, outPath string) error {
-	fmt.Println("DEBUG RStruct outPath =", outPath)
 	tree, err := s.Reverser.Reverse(ctx, inputDir)
 	if err != nil {
 		return err
