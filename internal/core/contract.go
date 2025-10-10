@@ -13,6 +13,7 @@ type Generator interface {
 type Parser interface {
 	Parse(ctx context.Context, blueprintPath string) (*Tree, error)
 	Write(ctx context.Context, tree *Tree, path string) error
+	ParseString(ctx context.Context, content string) (*Tree, error)
 }
 
 // Reverser: folder → Tree
