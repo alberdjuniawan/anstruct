@@ -18,6 +18,7 @@ type SyncConfig struct {
 	BlueprintPath string        // file .struct
 	Debounce      time.Duration // jeda sebelum trigger
 	Verbose       bool
+	IgnorePattern string // pattern yg di-skip
 }
 
 type Watcher struct{}
@@ -25,7 +26,6 @@ type Watcher struct{}
 func New() *Watcher { return &Watcher{} }
 
 func (w *Watcher) Run(ctx context.Context, cfg SyncConfig, onFolder func(), onBlueprint func()) error {
-	// normalisasi path
 	projectAbs, err := filepath.Abs(cfg.ProjectPath)
 	if err != nil {
 		return fmt.Errorf("invalid project path: %w", err)
@@ -44,12 +44,15 @@ func (w *Watcher) Run(ctx context.Context, cfg SyncConfig, onFolder func(), onBl
 	}
 	defer watcher.Close()
 
-	// --- recursive watch untuk semua subdir ---
+	// watch recursive
 	err = filepath.WalkDir(projectAbs, func(path string, d os.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}
 		if d.IsDir() {
+			if shouldIgnore(cfg.IgnorePattern, path) {
+				return filepath.SkipDir
+			}
 			if cfg.Verbose {
 				log.Println("watching dir:", path)
 			}
@@ -63,7 +66,6 @@ func (w *Watcher) Run(ctx context.Context, cfg SyncConfig, onFolder func(), onBl
 		return err
 	}
 
-	// watch file blueprint
 	if cfg.Verbose {
 		log.Println("watching blueprint:", blueprintAbs)
 	}
@@ -71,7 +73,6 @@ func (w *Watcher) Run(ctx context.Context, cfg SyncConfig, onFolder func(), onBl
 		return err
 	}
 
-	// --- debounce safe ---
 	var mu sync.Mutex
 	var timer *time.Timer
 	trigger := func(source string) {
@@ -96,13 +97,15 @@ func (w *Watcher) Run(ctx context.Context, cfg SyncConfig, onFolder func(), onBl
 		})
 	}
 
-	// --- event loop ---
 	for {
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
 		case event := <-watcher.Events:
 			if event.Op&(fsnotify.Write|fsnotify.Create|fsnotify.Remove|fsnotify.Rename) != 0 {
+				if shouldIgnore(cfg.IgnorePattern, event.Name) {
+					continue
+				}
 				if sameFile(event.Name, blueprintAbs) {
 					trigger("blueprint")
 				} else if strings.HasPrefix(event.Name, projectAbs) {
@@ -116,9 +119,15 @@ func (w *Watcher) Run(ctx context.Context, cfg SyncConfig, onFolder func(), onBl
 }
 
 // --- helpers ---
-
 func sameFile(a, b string) bool {
 	ap, _ := filepath.Abs(a)
 	bp, _ := filepath.Abs(b)
 	return ap == bp
+}
+
+func shouldIgnore(pattern, path string) bool {
+	if pattern == "" {
+		return false
+	}
+	return strings.Contains(path, pattern)
 }
