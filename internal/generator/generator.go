@@ -14,12 +14,19 @@ type Generator struct{}
 func New() *Generator { return &Generator{} }
 
 // Generate: bikin folder/file sesuai blueprint.
-// Tidak otomatis full sync (aman untuk mstruct).
-// Full sync hanya dipakai di mode watch (svc.Watch).
+// PERBAIKAN: Tidak bikin nested folder lagi, langsung generate di outputDir
 func (g *Generator) Generate(ctx context.Context, tree *core.Tree, outputDir string, opts core.GenerateOptions) (core.Receipt, error) {
 	receipt := core.Receipt{}
 
-	// generate semua anak root langsung ke outputDir
+	// Pastikan outputDir ada
+	if !opts.DryRun {
+		if err := os.MkdirAll(outputDir, 0o755); err != nil {
+			return receipt, err
+		}
+	}
+
+	// Generate semua anak root LANGSUNG ke dalam outputDir
+	// Tidak bikin folder tree.Root.Name lagi
 	for _, c := range tree.Root.Children {
 		if err := writeNode(c, outputDir, opts, &receipt); err != nil {
 			return receipt, err
@@ -49,12 +56,13 @@ func writeNode(n *core.Node, base string, opts core.GenerateOptions, r *core.Rec
 
 	case core.NodeFile:
 		if !opts.DryRun {
-			// cek dulu: kalau file sudah ada dan isinya sama → skip
+			// cek dulu: kalau file sudah ada dan tidak force → error
 			if !opts.Force {
 				if _, err := os.Stat(target); err == nil {
 					return errors.New("file exists: " + target)
 				}
 			} else {
+				// kalau force: skip kalau isinya sama
 				if existing, err := os.ReadFile(target); err == nil {
 					if string(existing) == n.Content {
 						// isi sama → skip tulis
