@@ -2,7 +2,6 @@ package ai
 
 import (
 	"context"
-	"os"
 
 	"github.com/alberdjuniawan/anstruct/internal/core"
 )
@@ -22,11 +21,6 @@ func (g *AIGenerator) FromPrompt(ctx context.Context, natural string) (*core.Tre
 	if err != nil {
 		return nil, err
 	}
-
-	tmp := ".ai_generated.struct"
-	if err := os.WriteFile(tmp, []byte(text), 0o644); err != nil {
-		return nil, err
-	}
-
-	return g.Parser.Parse(ctx, tmp)
+	// langsung parse dari string, tanpa bikin file sementara
+	return g.Parser.ParseString(ctx, text)
 }
