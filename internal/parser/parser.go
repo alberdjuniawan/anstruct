@@ -53,16 +53,19 @@ func (p *Parser) Write(ctx context.Context, tree *core.Tree, path string) error 
 		if depth > 0 { // skip root dir
 			// Gunakan tab untuk indentasi (konsisten)
 			b.WriteString(strings.Repeat("\t", depth-1))
-			// Tulis nama asli (OriginalName) kalau ada, fallback ke Name
+
+			// Jika OriginalName tersedia, tulis persis itu (berguna untuk trailing slash)
 			if n.OriginalName != "" {
 				b.WriteString(n.OriginalName)
 			} else {
-				b.WriteString(n.Name)
+				// format default: tambahkan slash untuk direktori
+				if n.Type == core.NodeDir {
+					b.WriteString(n.Name + "/")
+				} else {
+					b.WriteString(n.Name)
+				}
 			}
 			b.WriteString("\n")
-
-			// Tulis content untuk file (opsional: bisa pakai format khusus)
-			// Ini bisa dikembangkan untuk menyimpan content dalam format tertentu
 		}
 	})
 
@@ -82,7 +85,7 @@ func parseScanner(scanner *bufio.Scanner, rootName string) (*core.Tree, error) {
 	root := &core.Node{
 		Type:         core.NodeDir,
 		Name:         rootName,
-		OriginalName: rootName,
+		OriginalName: rootName + "/",
 	}
 	stack := []frame{{node: root, depth: -1}}
 	lineNum := 0
@@ -100,23 +103,33 @@ func parseScanner(scanner *bufio.Scanner, rootName string) (*core.Tree, error) {
 		depth := countIndent(line)
 		entry := trimmed
 
-		// Deteksi tipe: file jika ada ekstensi (titik di nama)
-		// Folder tidak punya ekstensi, file punya (e.g., main.go, style.css)
-		isFile := strings.Contains(entry, ".")
+		// Detect trailing slash -> explicit directory
+		explicitDir := strings.HasSuffix(entry, "/")
 
-		// Sanitasi nama
-		name := sanitize(entry)
+		// Sanitasi nama: jika explicitDir, hapus trailing slash sebelum sanitize
+		tmp := entry
+		if explicitDir {
+			tmp = strings.TrimSuffix(tmp, "/")
+		}
+
+		// Deteksi tipe: file jika ada titik di nama (ekstensi)
+		isFileByExt := strings.Contains(tmp, ".")
+
+		// Sanitasi nama (bersihkan path traversal atau separator)
+		name := sanitize(tmp)
 		if name == "" || name == "_" {
 			return nil, fmt.Errorf("invalid entry name at line %d: %q", lineNum, entry)
 		}
 
+		// Create node, default directory (we'll convert to file if detected)
 		n := &core.Node{
 			Type:         core.NodeDir,
 			Name:         name,
-			OriginalName: entry,
+			OriginalName: entry, // preserve original including trailing slash if any
 			Content:      "",
 		}
-		if isFile {
+		// If clearly file by extension and not explicitly marked as directory, mark as file
+		if isFileByExt && !explicitDir {
 			n.Type = core.NodeFile
 		}
 
@@ -137,6 +150,16 @@ func parseScanner(scanner *bufio.Scanner, rootName string) (*core.Tree, error) {
 		}
 
 		parent := stack[len(stack)-1].node
+
+		// If parent previously thought to be file, but now gets a child -> convert to dir
+		if parent.Type != core.NodeDir {
+			parent.Type = core.NodeDir
+			// Ensure OriginalName for parent shows as directory (append slash if missing)
+			if !strings.HasSuffix(parent.OriginalName, "/") {
+				parent.OriginalName = parent.Name + "/"
+			}
+		}
+
 		parent.Children = append(parent.Children, n)
 		stack = append(stack, frame{node: n, depth: depth})
 	}
@@ -144,6 +167,21 @@ func parseScanner(scanner *bufio.Scanner, rootName string) (*core.Tree, error) {
 	if err := scanner.Err(); err != nil {
 		return nil, fmt.Errorf("scanner error: %w", err)
 	}
+
+	// Post-process: ensure nodes that have children are marked as directories
+	var fix func(*core.Node)
+	fix = func(n *core.Node) {
+		if len(n.Children) > 0 {
+			n.Type = core.NodeDir
+			if n.OriginalName == "" || !strings.HasSuffix(n.OriginalName, "/") {
+				n.OriginalName = n.Name + "/"
+			}
+		}
+		for _, c := range n.Children {
+			fix(c)
+		}
+	}
+	fix(root)
 
 	return &core.Tree{Root: root}, nil
 }
@@ -192,6 +230,7 @@ func sanitize(name string) string {
 	}
 
 	// Cegah path separator (seharusnya tidak ada / atau \)
+	// Note: trailing slash already removed earlier, jadi ini aman
 	if strings.Contains(name, "/") || strings.Contains(name, "\\") {
 		name = strings.ReplaceAll(name, "/", "-")
 		name = strings.ReplaceAll(name, "\\", "-")
