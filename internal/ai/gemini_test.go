@@ -10,7 +10,6 @@ import (
 )
 
 func TestGeminiProvider_GenerateBlueprint_Success(t *testing.T) {
-	// fake server balikin blueprint sukses
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		resp := map[string]string{"blueprint": "app\n\tmain.go"}
 		_ = json.NewEncoder(w).Encode(resp)
@@ -31,7 +30,6 @@ func TestGeminiProvider_GenerateBlueprint_Success(t *testing.T) {
 }
 
 func TestGeminiProvider_GenerateBlueprint_ErrorFromProxy(t *testing.T) {
-	// fake server balikin error status
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "bad request", http.StatusBadRequest)
 	}))
@@ -47,7 +45,6 @@ func TestGeminiProvider_GenerateBlueprint_ErrorFromProxy(t *testing.T) {
 }
 
 func TestGeminiProvider_GenerateBlueprint_EmptyBlueprint(t *testing.T) {
-	// fake server balikin empty blueprint
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		resp := map[string]string{"blueprint": ""}
 		_ = json.NewEncoder(w).Encode(resp)
