@@ -63,7 +63,6 @@ Examples:
 			cmd.Printf("⚙️  Mode: %s | Dry: %v | Ignore: %s | Debounce: %v\n",
 				modeLabel(halfMode, fullMode), dry, ignore, debounce)
 
-			// --- define actions ---
 			onFolder := func() {
 				if dry {
 					cmd.Println("📂 (dry-run) Folder changed → would update blueprint")
@@ -105,7 +104,6 @@ Examples:
 				cmd.Printf("✅ Synced: %d dirs, %d files\n", receipt.CreatedDirs, receipt.CreatedFiles)
 			}
 
-			// --- mode handling ---
 			switch {
 			case fullMode:
 				cmd.Println("🔁 Running in FULL sync mode (bi-directional)")
@@ -146,7 +144,6 @@ func modeLabel(half string, full bool) string {
 	return "unknown"
 }
 
-// --- Helper: reserved protection ---
 func addReservedAllowed(project string, blueprint string, allowed map[string]bool) {
 	projectAbs, _ := filepath.Abs(project)
 	blueprintAbs, _ := filepath.Abs(blueprint)
