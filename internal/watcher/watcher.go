@@ -14,11 +14,11 @@ import (
 )
 
 type SyncConfig struct {
-	ProjectPath   string        // folder proyek
-	BlueprintPath string        // file .struct
-	Debounce      time.Duration // jeda sebelum trigger
+	ProjectPath   string
+	BlueprintPath string
+	Debounce      time.Duration
 	Verbose       bool
-	IgnorePattern string // pattern yg di-skip
+	IgnorePattern string
 }
 
 type Watcher struct{}
@@ -44,7 +44,6 @@ func (w *Watcher) Run(ctx context.Context, cfg SyncConfig, onFolder func(), onBl
 	}
 	defer watcher.Close()
 
-	// watch recursive
 	err = filepath.WalkDir(projectAbs, func(path string, d os.DirEntry, err error) error {
 		if err != nil {
 			return err
@@ -118,7 +117,6 @@ func (w *Watcher) Run(ctx context.Context, cfg SyncConfig, onFolder func(), onBl
 	}
 }
 
-// --- helpers ---
 func sameFile(a, b string) bool {
 	ap, _ := filepath.Abs(a)
 	bp, _ := filepath.Abs(b)
