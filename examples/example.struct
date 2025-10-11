@@ -1,5 +1,5 @@
-myapp
+myapp/
   README.md
-  internal
+  internal/
     server.go
     tes.woy
