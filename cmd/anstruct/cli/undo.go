@@ -26,14 +26,12 @@ Examples:
   anstruct undo --confirm`,
 
 		RunE: func(cmd *cobra.Command, args []string) error {
-			// Show warning if not confirmed
 			if !confirm {
 				fmt.Println("⚠️  WARNING: This will delete files created by the last operation!")
 				fmt.Println("Use --confirm flag to proceed, or use 'anstruct history' to see what will be undone.")
 				return nil
 			}
 
-			// Execute undo
 			if err := svc.History.Undo(ctx); err != nil {
 				return fmt.Errorf("undo failed: %w", err)
 			}
@@ -67,7 +65,6 @@ Examples:
   anstruct history --clear`,
 
 		RunE: func(cmd *cobra.Command, args []string) error {
-			// Cast to concrete type to access List and Clear
 			histImpl, ok := svc.History.(interface {
 				List(ctx context.Context) ([]core.Operation, error)
 				Clear(ctx context.Context) error
@@ -85,7 +82,6 @@ Examples:
 				return nil
 			}
 
-			// List history
 			ops, err := histImpl.List(ctx)
 			if err != nil {
 				return fmt.Errorf("failed to read history: %w", err)
