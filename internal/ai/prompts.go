@@ -2,7 +2,6 @@ package ai
 
 import "fmt"
 
-// SystemPrompt returns the base instruction for AI
 func SystemPrompt() string {
 	return `You are a project structure generator.
 
@@ -34,7 +33,6 @@ database/
 Now generate a project structure for:`
 }
 
-// RetryPrompt builds a correction prompt for retry attempts
 func RetryPrompt(originalPrompt string, validationErr error) string {
 	return fmt.Sprintf(`⚠️ YOUR PREVIOUS OUTPUT WAS REJECTED: %s
 
@@ -72,7 +70,6 @@ NOW REGENERATE CORRECTLY WITH ONE ROOT FOLDER ONLY!`,
 		originalPrompt)
 }
 
-// BuildFullPrompt combines system prompt with user request
 func BuildFullPrompt(userRequest string) string {
 	return SystemPrompt() + "\n" + userRequest
 }
