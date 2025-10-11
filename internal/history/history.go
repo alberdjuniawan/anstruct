@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"sort"
@@ -21,9 +22,7 @@ func New(logPath string) *History {
 	return &History{LogPath: logPath}
 }
 
-// Record: simpan operasi ke log JSON
 func (h *History) Record(ctx context.Context, op core.Operation) error {
-	// Add timestamp
 	if op.Timestamp == "" {
 		op.Timestamp = time.Now().Format(time.RFC3339)
 	}
@@ -38,7 +37,6 @@ func (h *History) Record(ctx context.Context, op core.Operation) error {
 	return enc.Encode(op)
 }
 
-// Undo: rollback operasi terakhir
 func (h *History) Undo(ctx context.Context) error {
 	data, err := os.ReadFile(h.LogPath)
 	if err != nil {
@@ -59,32 +57,25 @@ func (h *History) Undo(ctx context.Context) error {
 		return err
 	}
 
-	// Execute undo based on operation type
 	if err := h.undoOperation(op); err != nil {
 		return err
 	}
 
-	// Remove last line from log
 	return truncateLastLine(h.LogPath)
 }
 
-// undoOperation performs the actual undo logic
 func (h *History) undoOperation(op core.Operation) error {
 	switch op.Type {
 	case core.OpCreate:
-		// Undo mstruct: hapus folder yang di-generate
 		return h.undoCreate(op)
 
 	case core.OpReverse:
-		// Undo rstruct: hapus .struct file
 		return h.undoReverse(op)
 
 	case core.OpAI:
-		// Undo aistruct (blueprint mode): hapus .struct file
 		return h.undoAIBlueprint(op)
 
 	case core.OpAIApply:
-		// Undo aistruct --apply: hapus folder yang di-generate
 		return h.undoAIApply(op)
 
 	default:
@@ -92,16 +83,13 @@ func (h *History) undoOperation(op core.Operation) error {
 	}
 }
 
-// undoCreate: rollback OpCreate (mstruct)
 func (h *History) undoCreate(op core.Operation) error {
-	// Hapus files dulu (bottom-up)
 	for _, f := range op.Receipt.CreatedFiles {
 		if err := os.Remove(f); err != nil && !os.IsNotExist(err) {
-			// Log error but continue
+			fmt.Printf("Failed to remove file %s: %v\n", f, err)
 		}
 	}
 
-	// Hapus directories (dari dalam ke luar)
 	dirs := op.Receipt.CreatedDirs
 	sort.Slice(dirs, func(i, j int) bool {
 		return len(dirs[i]) > len(dirs[j])
@@ -109,31 +97,25 @@ func (h *History) undoCreate(op core.Operation) error {
 
 	for _, d := range dirs {
 		if err := os.Remove(d); err != nil && !os.IsNotExist(err) {
-			// Directory might not be empty, that's ok
+			fmt.Printf("Failed to remove directory %s: %v\n", d, err)
 		}
 	}
 
 	return nil
 }
 
-// undoReverse: rollback OpReverse (rstruct)
 func (h *History) undoReverse(op core.Operation) error {
 	return os.Remove(op.Target)
 }
 
-// undoAIBlueprint: rollback OpAI (aistruct blueprint mode)
 func (h *History) undoAIBlueprint(op core.Operation) error {
-	// Simply delete the .struct file
 	return os.Remove(op.Target)
 }
 
-// undoAIApply: rollback OpAIApply (aistruct --apply)
 func (h *History) undoAIApply(op core.Operation) error {
-	// Same as undoCreate - remove all generated files/folders
 	return h.undoCreate(op)
 }
 
-// List: tampilkan history
 func (h *History) List(ctx context.Context) ([]core.Operation, error) {
 	data, err := os.ReadFile(h.LogPath)
 	if err != nil {
@@ -152,7 +134,7 @@ func (h *History) List(ctx context.Context) ([]core.Operation, error) {
 		}
 		var op core.Operation
 		if err := json.Unmarshal([]byte(line), &op); err != nil {
-			continue // Skip invalid lines
+			continue
 		}
 		ops = append(ops, op)
 	}
@@ -160,12 +142,9 @@ func (h *History) List(ctx context.Context) ([]core.Operation, error) {
 	return ops, nil
 }
 
-// Clear: hapus semua history
 func (h *History) Clear(ctx context.Context) error {
 	return os.Remove(h.LogPath)
 }
-
-// --- Helpers ---
 
 func truncateLastLine(path string) error {
 	data, err := os.ReadFile(path)
