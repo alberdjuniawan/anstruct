@@ -9,7 +9,6 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// newMStructCmd handles project generation from .struct blueprints.
 func newMStructCmd() *cobra.Command {
 	var (
 		outDir  string
@@ -34,7 +33,6 @@ Examples:
 		RunE: func(cmd *cobra.Command, args []string) error {
 			structFile := filepath.Clean(args[0])
 
-			// 🔍 Validate file
 			info, err := os.Stat(structFile)
 			if os.IsNotExist(err) {
 				return fmt.Errorf("file not found: %s", structFile)
@@ -46,7 +44,6 @@ Examples:
 				return fmt.Errorf("invalid file type: %s (must be .struct)", structFile)
 			}
 
-			// 📂 Ensure output directory exists
 			cleanOutDir := filepath.Clean(outDir)
 			if _, err := os.Stat(cleanOutDir); os.IsNotExist(err) {
 				if mkErr := os.MkdirAll(cleanOutDir, 0755); mkErr != nil {
@@ -59,7 +56,6 @@ Examples:
 				fmt.Println("💡 Dry run mode enabled: no files will be written.")
 			}
 
-			// 🧠 Execute generation
 			receipt, err := svc.MStruct(ctx, structFile, cleanOutDir, core.GenerateOptions{
 				DryRun: dry,
 				Force:  force,
@@ -68,7 +64,6 @@ Examples:
 				return fmt.Errorf("generation failed: %w", err)
 			}
 
-			// 📜 Verbose preview (only if dry + verbose)
 			if dry && verbose {
 				fmt.Println("\n📂 Preview of what would be generated:")
 				if len(receipt.CreatedDirs) > 0 {
@@ -85,7 +80,6 @@ Examples:
 				}
 			}
 
-			// ✅ Summary
 			fmt.Printf("\n✅ Done! %d directories, %d files created.\n",
 				len(receipt.CreatedDirs), len(receipt.CreatedFiles))
 
@@ -97,7 +91,6 @@ Examples:
 		},
 	}
 
-	// --- Flags ---
 	cmd.Flags().StringVarP(&outDir, "out", "o", ".", "output directory (default: current folder)")
 	cmd.Flags().BoolVar(&dry, "dry", false, "simulate generation without writing files")
 	cmd.Flags().BoolVar(&force, "force", false, "overwrite existing files if they already exist")
