@@ -21,7 +21,7 @@ func (r *Reverser) Reverse(ctx context.Context, inputDir string) (*core.Tree, er
 			return err
 		}
 		if path == inputDir {
-			return nil // skip root
+			return nil
 		}
 
 		rel, _ := filepath.Rel(inputDir, path)
@@ -41,7 +41,6 @@ func insert(root *core.Node, parts []string, d os.DirEntry) {
 		last := i == len(parts)-1
 		var next *core.Node
 
-		// find existing child with same name
 		for _, c := range cur.Children {
 			if c.Name == name {
 				next = c
@@ -58,7 +57,6 @@ func insert(root *core.Node, parts []string, d os.DirEntry) {
 			next = &core.Node{Type: t, Name: name, OriginalName: orig}
 			cur.Children = append(cur.Children, next)
 		} else {
-			// If existing child was created as file earlier but now we realize it's a dir (because deeper path exists)
 			if last == false && next.Type == core.NodeFile {
 				next.Type = core.NodeDir
 				if !strings.HasSuffix(next.OriginalName, "/") {
