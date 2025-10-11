@@ -38,7 +38,6 @@ Examples:
 		RunE: func(cmd *cobra.Command, args []string) error {
 			prompt := strings.Join(args, " ")
 
-			// Smart default output
 			if outFile == "" {
 				if apply {
 					outFile = "./aiproject"
@@ -47,13 +46,11 @@ Examples:
 				}
 			}
 
-			// Validate output mode
 			isStructOutput := strings.HasSuffix(outFile, ".struct")
 			if !apply && !isStructOutput && !dry {
 				return fmt.Errorf("output must end with .struct or use --apply to generate folder")
 			}
 
-			// Build options
 			opts := core.AIOptions{
 				Apply:   apply,
 				DryRun:  dry,
@@ -62,7 +59,6 @@ Examples:
 				Force:   force,
 			}
 
-			// Display mode info
 			if apply {
 				fmt.Printf("🤖 AI Mode: Generate folder directly → %s\n", outFile)
 			} else {
@@ -73,7 +69,6 @@ Examples:
 				fmt.Println("💡 Dry run mode enabled: no files will be written.")
 			}
 
-			// Execute AI generation
 			if err := svc.AIStruct(ctx, prompt, outFile, opts); err != nil {
 				return fmt.Errorf("AIStruct error: %w", err)
 			}
