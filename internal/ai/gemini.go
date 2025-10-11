@@ -11,14 +11,11 @@ import (
 	"time"
 )
 
-// GeminiProvider memanggil proxy endpoint (misalnya Cloudflare Worker)
-// yang menyimpan API key Gemini secara aman di server.
 type GeminiProvider struct {
-	Endpoint string       // URL proxy
-	Client   *http.Client // custom HTTP client
+	Endpoint string
+	Client   *http.Client
 }
 
-// NewGeminiProvider membuat provider baru dengan endpoint proxy.
 func NewGeminiProvider(endpoint string) *GeminiProvider {
 	if endpoint == "" {
 		endpoint = "https://anstruct-ai-proxy.anstruct.workers.dev/generate"
@@ -29,28 +26,22 @@ func NewGeminiProvider(endpoint string) *GeminiProvider {
 	}
 }
 
-// requestPayload adalah format request ke proxy
 type requestPayload struct {
 	Prompt string `json:"prompt"`
 }
 
-// responsePayload adalah format response dari proxy
 type responsePayload struct {
 	Blueprint string `json:"blueprint"`
 	Error     string `json:"error,omitempty"`
 }
 
-// ErrEmptyBlueprint error khusus jika hasil kosong
 var ErrEmptyBlueprint = errors.New("empty blueprint returned")
 
-// GenerateBlueprint mengirim prompt ke proxy → menerima blueprint .struct
-// Automatically combines system prompt with user request
 func (g *GeminiProvider) GenerateBlueprint(ctx context.Context, userPrompt string) (string, error) {
 	if userPrompt == "" {
 		return "", errors.New("prompt cannot be empty")
 	}
 
-	// Build full prompt with system instructions
 	fullPrompt := BuildFullPrompt(userPrompt)
 
 	body, err := json.Marshal(requestPayload{Prompt: fullPrompt})
@@ -70,7 +61,6 @@ func (g *GeminiProvider) GenerateBlueprint(ctx context.Context, userPrompt strin
 	}
 	defer resp.Body.Close()
 
-	// baca body sekali
 	data, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return "", fmt.Errorf("read response: %w", err)
