@@ -18,19 +18,17 @@ import (
 )
 
 type Service struct {
-	Gen       *ai.AIGenerator // AI generator (FromPrompt)
+	Gen       *ai.AIGenerator
 	Parser    core.Parser
 	Reverser  core.Reverser
 	Validator core.Validator
 	History   core.History
-	Writer    *generator.Generator // file/folder generator
+	Writer    *generator.Generator
 }
 
 func NewService(endpoint, historyPath string) *Service {
 	p := parser.New()
 
-	// Simple provider without fallback for now
-	// TODO: Add fallback when OpenAI provider is needed
 	provider := ai.NewGeminiProvider(endpoint)
 
 	return &Service{
@@ -43,14 +41,11 @@ func NewService(endpoint, historyPath string) *Service {
 	}
 }
 
-// AIStruct: prompt → .struct file atau langsung folder (dual mode)
 func (s *Service) AIStruct(ctx context.Context, prompt, outPath string, opts core.AIOptions) error {
 	fmt.Printf("🤖 Generating from prompt: %s\n", prompt)
 
-	// Generate tree from AI with retries
 	tree, rawOutput, err := s.Gen.FromPrompt(ctx, prompt, opts.Retries)
 
-	// Handle verbose mode
 	if opts.Verbose && rawOutput != "" {
 		fmt.Println("\n📋 Raw AI Output:")
 		fmt.Println("---")
@@ -58,9 +53,7 @@ func (s *Service) AIStruct(ctx context.Context, prompt, outPath string, opts cor
 		fmt.Println("---")
 	}
 
-	// Handle generation errors
 	if err != nil {
-		// Save invalid output for debugging
 		if rawOutput != "" {
 			fallbackFile := "ai_invalid_" + time.Now().Format("20060102_150405") + ".struct"
 			_ = os.WriteFile(fallbackFile, []byte(rawOutput), 0644)
@@ -69,7 +62,6 @@ func (s *Service) AIStruct(ctx context.Context, prompt, outPath string, opts cor
 		return err
 	}
 
-	// Dry run mode: just display
 	if opts.DryRun {
 		fmt.Println("\n📂 Preview of generated structure:")
 		displayTree(tree.Root, 0)
@@ -77,25 +69,20 @@ func (s *Service) AIStruct(ctx context.Context, prompt, outPath string, opts cor
 		return nil
 	}
 
-	// Mode 1: Apply - Generate folder directly
 	if opts.Apply {
 		return s.applyDirectly(ctx, tree, outPath, opts)
 	}
 
-	// Mode 2: Blueprint - Save .struct file
 	return s.saveBlueprint(ctx, tree, outPath)
 }
 
-// applyDirectly: generate folder langsung dari tree
 func (s *Service) applyDirectly(ctx context.Context, tree *core.Tree, outPath string, opts core.AIOptions) error {
 	fmt.Printf("\n📁 Generating project folder: %s\n", outPath)
 
-	// Validate tree
 	if err := s.Validator.Validate(ctx, tree); err != nil {
 		return fmt.Errorf("validation failed: %w", err)
 	}
 
-	// Generate to folder
 	receipt, err := s.Writer.Generate(ctx, tree, outPath, core.GenerateOptions{
 		DryRun: false,
 		Force:  opts.Force,
@@ -104,9 +91,8 @@ func (s *Service) applyDirectly(ctx context.Context, tree *core.Tree, outPath st
 		return fmt.Errorf("generation failed: %w", err)
 	}
 
-	// Record history with correct operation type
 	_ = s.History.Record(ctx, core.Operation{
-		Type:    core.OpAIApply, // Bukan OpAI, tapi OpAIApply
+		Type:    core.OpAIApply,
 		Target:  outPath,
 		Receipt: receipt,
 	})
@@ -119,11 +105,9 @@ func (s *Service) applyDirectly(ctx context.Context, tree *core.Tree, outPath st
 	return nil
 }
 
-// saveBlueprint: simpan .struct file
 func (s *Service) saveBlueprint(ctx context.Context, tree *core.Tree, outPath string) error {
 	fmt.Printf("\n📝 Saving blueprint: %s\n", outPath)
 
-	// Ensure directory exists
 	dir := filepath.Dir(outPath)
 	if dir != "." && dir != "" {
 		if err := os.MkdirAll(dir, 0755); err != nil {
@@ -131,14 +115,12 @@ func (s *Service) saveBlueprint(ctx context.Context, tree *core.Tree, outPath st
 		}
 	}
 
-	// Write blueprint
 	if err := s.Parser.Write(ctx, tree, outPath); err != nil {
 		return fmt.Errorf("failed to write blueprint: %w", err)
 	}
 
-	// Record history with OpAI (not OpCreate)
 	_ = s.History.Record(ctx, core.Operation{
-		Type:   core.OpAI, // Khusus untuk aistruct blueprint
+		Type:   core.OpAI,
 		Target: outPath,
 	})
 
@@ -146,7 +128,6 @@ func (s *Service) saveBlueprint(ctx context.Context, tree *core.Tree, outPath st
 	return nil
 }
 
-// displayTree: helper untuk preview structure
 func displayTree(n *core.Node, depth int) {
 	if depth > 0 {
 		indent := ""
@@ -164,7 +145,6 @@ func displayTree(n *core.Node, depth int) {
 	}
 }
 
-// mstruct: .struct file → folder (unchanged)
 func (s *Service) MStruct(ctx context.Context, structFile, outputDir string, opts core.GenerateOptions) (core.Receipt, error) {
 	tree, err := s.Parser.Parse(ctx, structFile)
 	if err != nil {
@@ -181,7 +161,6 @@ func (s *Service) MStruct(ctx context.Context, structFile, outputDir string, opt
 	return receipt, nil
 }
 
-// rstruct: folder → .struct file (unchanged)
 func (s *Service) RStruct(ctx context.Context, inputDir string, outPath string) error {
 	tree, err := s.Reverser.Reverse(ctx, inputDir)
 	if err != nil {
@@ -194,7 +173,6 @@ func (s *Service) RStruct(ctx context.Context, inputDir string, outPath string) 
 	return nil
 }
 
-// watch: sinkronisasi folder <-> blueprint (unchanged)
 func (s *Service) Watch(ctx context.Context, projectPath, blueprintPath string, debounce time.Duration, verbose bool) error {
 	w := watcher.New()
 	cfg := watcher.SyncConfig{
@@ -204,19 +182,16 @@ func (s *Service) Watch(ctx context.Context, projectPath, blueprintPath string, 
 		Verbose:       verbose,
 	}
 	return w.Run(ctx, cfg,
-		// onFolder
 		func() {
 			if err := s.RStruct(ctx, projectPath, blueprintPath); err != nil && verbose {
 				fmt.Println("Reverse error:", err)
 			}
 		},
-		// onBlueprint
 		func() {
 			tree, err := s.Parser.Parse(ctx, blueprintPath)
 			if err == nil {
 				receipt, genErr := s.Writer.Generate(ctx, tree, projectPath, core.GenerateOptions{Force: true})
 				if genErr == nil {
-					// full sync cleanup
 					allowed := map[string]bool{}
 					for _, c := range tree.Root.Children {
 						generator.CollectAllowed(c, "", allowed)
