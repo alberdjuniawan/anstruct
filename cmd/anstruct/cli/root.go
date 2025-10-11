@@ -30,6 +30,8 @@ func init() {
 		newMStructCmd(),
 		newRStructCmd(),
 		newWatchCmd(svc),
+		newUndoCmd(),
+		newHistoryCmd(),
 	)
 }
 
