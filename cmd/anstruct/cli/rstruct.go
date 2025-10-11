@@ -9,7 +9,6 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// newRStructCmd reverses a project folder into a .struct blueprint.
 func newRStructCmd() *cobra.Command {
 	var (
 		outFile string
@@ -35,7 +34,6 @@ Examples:
 		RunE: func(cmd *cobra.Command, args []string) error {
 			projectDir := filepath.Clean(args[0])
 
-			// 🔍 Validate input directory
 			info, err := os.Stat(projectDir)
 			if os.IsNotExist(err) {
 				return fmt.Errorf("directory not found: %s", projectDir)
@@ -44,10 +42,8 @@ Examples:
 				return fmt.Errorf("expected a directory, got a file: %s", projectDir)
 			}
 
-			// 🧩 Determine output file path
 			outFile = resolveOutputPath(outFile, projectDir)
 
-			// 📁 Ensure output directory exists
 			outDir := filepath.Dir(outFile)
 			if _, err := os.Stat(outDir); os.IsNotExist(err) {
 				if mkErr := os.MkdirAll(outDir, 0755); mkErr != nil {
@@ -83,7 +79,6 @@ Examples:
 	return cmd
 }
 
-// --- Helper: print directory tree in dry/verbose mode ---
 func printDirTree(root string, verbose bool) {
 	filepath.WalkDir(root, func(path string, d os.DirEntry, err error) error {
 		if err != nil {
@@ -103,36 +98,29 @@ func printDirTree(root string, verbose bool) {
 	})
 }
 
-// --- Helper: smarter output path resolver ---
 func resolveOutputPath(outArg, projectDir string) string {
 	base := filepath.Base(projectDir)
 
-	// Default: same name + .struct in current dir
 	if outArg == "" {
 		return fmt.Sprintf("%s.struct", base)
 	}
 
 	clean := filepath.Clean(outArg)
-	// Case 1: already a file with .struct extension
 	if strings.HasSuffix(clean, ".struct") {
 		return clean
 	}
 
-	// Case 2: ends with slash or backslash (explicitly folder)
 	if strings.HasSuffix(outArg, "/") || strings.HasSuffix(outArg, "\\") {
 		return filepath.Join(clean, fmt.Sprintf("%s.struct", base))
 	}
 
-	// Case 3: existing directory
 	if info, err := os.Stat(clean); err == nil && info.IsDir() {
 		return filepath.Join(clean, fmt.Sprintf("%s.struct", base))
 	}
 
-	// Case 4: new path without .struct extension, assume folder name
 	if filepath.Ext(clean) == "" {
 		return fmt.Sprintf("%s.struct", clean)
 	}
 
-	// Default fallback
 	return clean
 }
