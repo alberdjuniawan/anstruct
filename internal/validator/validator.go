@@ -29,7 +29,6 @@ func (v *Validator) Validate(ctx context.Context, tree *core.Tree) error {
 			return
 		}
 
-		// check traversal using OriginalName (raw name from parser)
 		if isTraversal(n.OriginalName) {
 			err = errors.New("path traversal detected: " + n.OriginalName)
 			return
@@ -37,8 +36,6 @@ func (v *Validator) Validate(ctx context.Context, tree *core.Tree) error {
 	})
 	return err
 }
-
-// --- helpers ---
 
 func walk(n *core.Node, prefix string, fn func(path string, n *core.Node)) {
 	path := prefix
