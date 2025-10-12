@@ -26,12 +26,16 @@ type Service struct {
 	Writer    *generator.Generator
 }
 
+// OperationRecreator implements history.OperationRecreator
+type OperationRecreator struct {
+	svc *Service
+}
+
 func NewService(endpoint, historyPath string) *Service {
 	p := parser.New()
-
 	provider := ai.NewGeminiProvider(endpoint)
 
-	return &Service{
+	s := &Service{
 		Gen:       ai.NewAIGenerator(provider, p),
 		Parser:    p,
 		Reverser:  reverser.New(),
@@ -39,8 +43,142 @@ func NewService(endpoint, historyPath string) *Service {
 		History:   history.New(historyPath),
 		Writer:    generator.New(),
 	}
+
+	// Setup recreator untuk redo functionality
+	recreator := &OperationRecreator{svc: s}
+	if hist, ok := s.History.(*history.History); ok {
+		hist.SetRecreator(recreator)
+	}
+
+	return s
 }
 
+// RecreateOperation implements redo logic for different operation types
+func (r *OperationRecreator) RecreateOperation(ctx context.Context, op core.Operation) error {
+	switch op.Type {
+	case core.OpCreate:
+		return r.recreateCreate(ctx, op)
+
+	case core.OpAIApply:
+		return r.recreateAIApply(ctx, op)
+
+	case core.OpReverse:
+		return r.recreateReverse(ctx, op)
+
+	case core.OpAI:
+		return r.recreateAIBlueprint(ctx, op)
+
+	default:
+		return fmt.Errorf("unknown operation type: %s", op.Type)
+	}
+}
+
+func (r *OperationRecreator) recreateCreate(ctx context.Context, op core.Operation) error {
+	if op.BlueprintPath == "" {
+		return fmt.Errorf("cannot recreate: blueprint path not saved in operation")
+	}
+
+	// Check if blueprint still exists
+	if _, err := os.Stat(op.BlueprintPath); os.IsNotExist(err) {
+		return fmt.Errorf("cannot recreate: blueprint file not found: %s", op.BlueprintPath)
+	}
+
+	fmt.Printf("🔄 Recreating from blueprint: %s\n", op.BlueprintPath)
+
+	tree, err := r.svc.Parser.Parse(ctx, op.BlueprintPath)
+	if err != nil {
+		return fmt.Errorf("failed to parse blueprint: %w", err)
+	}
+
+	if err := r.svc.Validator.Validate(ctx, tree); err != nil {
+		return fmt.Errorf("validation failed: %w", err)
+	}
+
+	receipt, err := r.svc.Writer.Generate(ctx, tree, op.Target, core.GenerateOptions{
+		DryRun: false,
+		Force:  true, // Force overwrite for redo
+	})
+	if err != nil {
+		return fmt.Errorf("generation failed: %w", err)
+	}
+
+	// Update receipt in operation
+	op.Receipt = receipt
+
+	fmt.Printf("✅ Recreated: %d dirs, %d files\n", len(receipt.CreatedDirs), len(receipt.CreatedFiles))
+	return nil
+}
+
+func (r *OperationRecreator) recreateAIApply(ctx context.Context, op core.Operation) error {
+	if op.SourcePrompt == "" {
+		return fmt.Errorf("cannot recreate: source prompt not saved in operation")
+	}
+
+	fmt.Printf("🤖 Regenerating from AI prompt: %s\n", op.SourcePrompt)
+
+	tree, _, err := r.svc.Gen.FromPrompt(ctx, op.SourcePrompt, 2)
+	if err != nil {
+		return fmt.Errorf("AI generation failed: %w", err)
+	}
+
+	if err := r.svc.Validator.Validate(ctx, tree); err != nil {
+		return fmt.Errorf("validation failed: %w", err)
+	}
+
+	receipt, err := r.svc.Writer.Generate(ctx, tree, op.Target, core.GenerateOptions{
+		DryRun: false,
+		Force:  true,
+	})
+	if err != nil {
+		return fmt.Errorf("generation failed: %w", err)
+	}
+
+	op.Receipt = receipt
+
+	fmt.Printf("✅ Regenerated: %d dirs, %d files\n", len(receipt.CreatedDirs), len(receipt.CreatedFiles))
+	return nil
+}
+
+func (r *OperationRecreator) recreateReverse(ctx context.Context, op core.Operation) error {
+	// For reverse operations, we need the source directory
+	// Since we only saved the target (.struct file), we can't perfectly recreate
+	// We'll just inform the user
+	return fmt.Errorf("cannot automatically recreate reverse operation - please run 'anstruct rstruct' manually")
+}
+
+func (r *OperationRecreator) recreateAIBlueprint(ctx context.Context, op core.Operation) error {
+	if op.SourcePrompt == "" {
+		return fmt.Errorf("cannot recreate: source prompt not saved in operation")
+	}
+
+	fmt.Printf("🤖 Regenerating AI blueprint from prompt: %s\n", op.SourcePrompt)
+
+	tree, rawOutput, err := r.svc.Gen.FromPrompt(ctx, op.SourcePrompt, 2)
+	if err != nil {
+		if rawOutput != "" {
+			fallbackFile := "ai_invalid_" + time.Now().Format("20060102_150405") + ".struct"
+			_ = os.WriteFile(fallbackFile, []byte(rawOutput), 0644)
+			return fmt.Errorf("%w\n💾 Raw output saved to: %s", err, fallbackFile)
+		}
+		return err
+	}
+
+	dir := filepath.Dir(op.Target)
+	if dir != "." && dir != "" {
+		if err := os.MkdirAll(dir, 0755); err != nil {
+			return fmt.Errorf("failed to create directory: %w", err)
+		}
+	}
+
+	if err := r.svc.Parser.Write(ctx, tree, op.Target); err != nil {
+		return fmt.Errorf("failed to write blueprint: %w", err)
+	}
+
+	fmt.Printf("✅ Blueprint recreated: %s\n", op.Target)
+	return nil
+}
+
+// AIStruct generates project structure from natural language
 func (s *Service) AIStruct(ctx context.Context, prompt, outPath string, opts core.AIOptions) error {
 	fmt.Printf("🤖 Generating from prompt: %s\n", prompt)
 
@@ -70,13 +208,13 @@ func (s *Service) AIStruct(ctx context.Context, prompt, outPath string, opts cor
 	}
 
 	if opts.Apply {
-		return s.applyDirectly(ctx, tree, outPath, opts)
+		return s.applyDirectly(ctx, tree, outPath, prompt, opts)
 	}
 
-	return s.saveBlueprint(ctx, tree, outPath)
+	return s.saveBlueprint(ctx, tree, outPath, prompt)
 }
 
-func (s *Service) applyDirectly(ctx context.Context, tree *core.Tree, outPath string, opts core.AIOptions) error {
+func (s *Service) applyDirectly(ctx context.Context, tree *core.Tree, outPath, prompt string, opts core.AIOptions) error {
 	fmt.Printf("\n📁 Generating project folder: %s\n", outPath)
 
 	if err := s.Validator.Validate(ctx, tree); err != nil {
@@ -92,9 +230,10 @@ func (s *Service) applyDirectly(ctx context.Context, tree *core.Tree, outPath st
 	}
 
 	_ = s.History.Record(ctx, core.Operation{
-		Type:    core.OpAIApply,
-		Target:  outPath,
-		Receipt: receipt,
+		Type:         core.OpAIApply,
+		Target:       outPath,
+		Receipt:      receipt,
+		SourcePrompt: prompt, // Save prompt for redo
 	})
 
 	fmt.Printf("\n✅ Project generated successfully!\n")
@@ -105,7 +244,7 @@ func (s *Service) applyDirectly(ctx context.Context, tree *core.Tree, outPath st
 	return nil
 }
 
-func (s *Service) saveBlueprint(ctx context.Context, tree *core.Tree, outPath string) error {
+func (s *Service) saveBlueprint(ctx context.Context, tree *core.Tree, outPath, prompt string) error {
 	fmt.Printf("\n📝 Saving blueprint: %s\n", outPath)
 
 	dir := filepath.Dir(outPath)
@@ -120,8 +259,9 @@ func (s *Service) saveBlueprint(ctx context.Context, tree *core.Tree, outPath st
 	}
 
 	_ = s.History.Record(ctx, core.Operation{
-		Type:   core.OpAI,
-		Target: outPath,
+		Type:         core.OpAI,
+		Target:       outPath,
+		SourcePrompt: prompt, // Save prompt for redo
 	})
 
 	fmt.Printf("✅ Blueprint saved: %s\n", outPath)
@@ -145,6 +285,7 @@ func displayTree(n *core.Node, depth int) {
 	}
 }
 
+// MStruct generates project from .struct blueprint file
 func (s *Service) MStruct(ctx context.Context, structFile, outputDir string, opts core.GenerateOptions) (core.Receipt, error) {
 	tree, err := s.Parser.Parse(ctx, structFile)
 	if err != nil {
@@ -157,10 +298,19 @@ func (s *Service) MStruct(ctx context.Context, structFile, outputDir string, opt
 	if err != nil {
 		return receipt, err
 	}
-	_ = s.History.Record(ctx, core.Operation{Type: core.OpCreate, Target: outputDir, Receipt: receipt})
+
+	// Record with blueprint path for redo
+	_ = s.History.Record(ctx, core.Operation{
+		Type:          core.OpCreate,
+		Target:        outputDir,
+		Receipt:       receipt,
+		BlueprintPath: structFile,
+	})
+
 	return receipt, nil
 }
 
+// RStruct reverse engineers a project folder into .struct blueprint
 func (s *Service) RStruct(ctx context.Context, inputDir string, outPath string) error {
 	tree, err := s.Reverser.Reverse(ctx, inputDir)
 	if err != nil {
@@ -169,10 +319,81 @@ func (s *Service) RStruct(ctx context.Context, inputDir string, outPath string) 
 	if err := s.Parser.Write(ctx, tree, outPath); err != nil {
 		return err
 	}
-	_ = s.History.Record(ctx, core.Operation{Type: core.OpReverse, Target: outPath})
+
+	// Record operation (note: can't easily recreate reverse operations)
+	_ = s.History.Record(ctx, core.Operation{
+		Type:   core.OpReverse,
+		Target: outPath,
+	})
+
 	return nil
 }
 
+// NormalizeStruct converts any text-based structure format to .struct format using AI
+func (s *Service) NormalizeStruct(ctx context.Context, inputContent, outPath string, opts core.AIOptions) error {
+	fmt.Println("🔄 Normalizing structure format...")
+
+	// Build prompt for normalization
+	normalizePrompt := buildNormalizePrompt(inputContent)
+
+	tree, rawOutput, err := s.Gen.FromPrompt(ctx, normalizePrompt, opts.Retries)
+
+	if opts.Verbose && rawOutput != "" {
+		fmt.Println("\n📋 Normalized Output:")
+		fmt.Println("---")
+		fmt.Println(rawOutput)
+		fmt.Println("---")
+	}
+
+	if err != nil {
+		if rawOutput != "" {
+			fallbackFile := "normalize_invalid_" + time.Now().Format("20060102_150405") + ".struct"
+			_ = os.WriteFile(fallbackFile, []byte(rawOutput), 0644)
+			return fmt.Errorf("%w\n💾 Raw output saved to: %s", err, fallbackFile)
+		}
+		return err
+	}
+
+	if opts.DryRun {
+		fmt.Println("\n📂 Preview of normalized structure:")
+		displayTree(tree.Root, 0)
+		fmt.Printf("\n✅ Dry run complete. No files written.\n")
+		return nil
+	}
+
+	// Save normalized blueprint
+	dir := filepath.Dir(outPath)
+	if dir != "." && dir != "" {
+		if err := os.MkdirAll(dir, 0755); err != nil {
+			return fmt.Errorf("failed to create directory: %w", err)
+		}
+	}
+
+	if err := s.Parser.Write(ctx, tree, outPath); err != nil {
+		return fmt.Errorf("failed to write normalized blueprint: %w", err)
+	}
+
+	fmt.Printf("✅ Structure normalized and saved to: %s\n", outPath)
+	return nil
+}
+
+func buildNormalizePrompt(inputContent string) string {
+	return fmt.Sprintf(`Convert the following project structure into the correct .struct format.
+
+CRITICAL RULES:
+1. Start with EXACTLY ONE root folder (e.g., "project/")
+2. Use TAB characters for indentation
+3. Folders MUST end with "/"
+4. Files have extensions, no trailing slash
+5. Output ONLY the structure, no explanations
+
+Input structure to convert:
+%s
+
+Now convert this to proper .struct format following all rules above.`, inputContent)
+}
+
+// Watch provides real-time sync between project and blueprint
 func (s *Service) Watch(ctx context.Context, projectPath, blueprintPath string, debounce time.Duration, verbose bool) error {
 	w := watcher.New()
 	cfg := watcher.SyncConfig{
