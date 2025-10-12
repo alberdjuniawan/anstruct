@@ -47,8 +47,10 @@ const (
 )
 
 type Operation struct {
-	Type      OperationType
-	Target    string
-	Receipt   Receipt
-	Timestamp string
+	Type          OperationType
+	Target        string
+	Receipt       Receipt
+	Timestamp     string
+	BlueprintPath string // ADDED: Path to blueprint for recreation
+	SourcePrompt  string // ADDED: Original AI prompt for recreation
 }
