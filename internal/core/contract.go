@@ -23,9 +23,20 @@ type Validator interface {
 type History interface {
 	Record(ctx context.Context, op Operation) error
 	Undo(ctx context.Context) error
+	Redo(ctx context.Context) error
+	List(ctx context.Context) ([]Operation, error)
+	Clear(ctx context.Context) error
 }
 
 type Watcher interface {
 	Run(ctx context.Context, cfg interface{},
 		onFolder func(), onBlueprint func()) error
+}
+
+// Service interface for main operations
+type Service interface {
+	AIStruct(ctx context.Context, prompt, outPath string, opts AIOptions) error
+	MStruct(ctx context.Context, structFile, outputDir string, opts GenerateOptions) (Receipt, error)
+	RStruct(ctx context.Context, inputDir string, outPath string) error
+	NormalizeStruct(ctx context.Context, inputContent, outPath string, opts AIOptions) error
 }
