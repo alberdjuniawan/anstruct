@@ -33,7 +33,6 @@ type Watcher interface {
 		onFolder func(), onBlueprint func()) error
 }
 
-// Service interface for main operations
 type Service interface {
 	AIStruct(ctx context.Context, prompt, outPath string, opts AIOptions) error
 	MStruct(ctx context.Context, structFile, outputDir string, opts GenerateOptions) (Receipt, error)
