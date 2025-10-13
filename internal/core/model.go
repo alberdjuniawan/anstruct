@@ -51,6 +51,6 @@ type Operation struct {
 	Target        string
 	Receipt       Receipt
 	Timestamp     string
-	BlueprintPath string // ADDED: Path to blueprint for recreation
-	SourcePrompt  string // ADDED: Original AI prompt for recreation
+	BlueprintPath string
+	SourcePrompt  string
 }
