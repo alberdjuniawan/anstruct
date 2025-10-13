@@ -51,12 +51,10 @@ Examples:
 		RunE: func(cmd *cobra.Command, args []string) error {
 			inputFile := filepath.Clean(args[0])
 
-			// Check if input file exists
 			if _, err := os.Stat(inputFile); os.IsNotExist(err) {
 				return fmt.Errorf("input file not found: %s", inputFile)
 			}
 
-			// Read input content
 			content, err := os.ReadFile(inputFile)
 			if err != nil {
 				return fmt.Errorf("failed to read input file: %w", err)
@@ -67,13 +65,11 @@ Examples:
 				return fmt.Errorf("input file is empty")
 			}
 
-			// Determine output file
 			if outFile == "" {
 				baseName := strings.TrimSuffix(filepath.Base(inputFile), filepath.Ext(inputFile))
 				outFile = baseName + ".struct"
 			}
 
-			// Ensure output has .struct extension
 			if !strings.HasSuffix(outFile, ".struct") {
 				outFile = outFile + ".struct"
 			}
