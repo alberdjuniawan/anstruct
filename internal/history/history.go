@@ -19,7 +19,6 @@ type History struct {
 	Recreator     OperationRecreator
 }
 
-// OperationRecreator interface untuk recreate operations saat redo
 type OperationRecreator interface {
 	RecreateOperation(ctx context.Context, op core.Operation) error
 }
@@ -32,12 +31,10 @@ func New(logPath string) *History {
 	}
 }
 
-// SetRecreator injects dependency untuk redo functionality
 func (h *History) SetRecreator(r OperationRecreator) {
 	h.Recreator = r
 }
 
-// Record: simpan operasi ke log JSON
 func (h *History) Record(ctx context.Context, op core.Operation) error {
 	if op.Timestamp == "" {
 		op.Timestamp = time.Now().Format(time.RFC3339)
@@ -50,7 +47,6 @@ func (h *History) Record(ctx context.Context, op core.Operation) error {
 	}
 	defer f.Close()
 
-	// Clear undo stack saat operasi baru dilakukan (standard undo/redo behavior)
 	if err := h.clearUndoStack(); err != nil {
 		fmt.Printf("⚠️  Warning: Failed to clear undo stack: %v\n", err)
 	}
@@ -59,7 +55,6 @@ func (h *History) Record(ctx context.Context, op core.Operation) error {
 	return enc.Encode(op)
 }
 
-// Undo: rollback operasi terakhir dan simpan ke undo stack
 func (h *History) Undo(ctx context.Context) error {
 	data, err := os.ReadFile(h.LogPath)
 	if err != nil {
@@ -80,17 +75,14 @@ func (h *History) Undo(ctx context.Context) error {
 		return fmt.Errorf("failed to parse operation: %w", err)
 	}
 
-	// Execute undo
 	if err := h.undoOperation(op); err != nil {
 		return fmt.Errorf("undo operation failed: %w", err)
 	}
 
-	// Save to undo stack for redo
 	if err := h.pushToUndoStack(op); err != nil {
 		return fmt.Errorf("failed to save to undo stack: %w", err)
 	}
 
-	// Remove from main history
 	if err := truncateLastLine(h.LogPath); err != nil {
 		return fmt.Errorf("failed to update history: %w", err)
 	}
@@ -98,9 +90,7 @@ func (h *History) Undo(ctx context.Context) error {
 	return nil
 }
 
-// Redo: re-apply operasi yang di-undo dengan recreate files
 func (h *History) Redo(ctx context.Context) error {
-	// Read from undo stack
 	data, err := os.ReadFile(h.UndoStackPath)
 	if err != nil {
 		if os.IsNotExist(err) {
@@ -114,14 +104,12 @@ func (h *History) Redo(ctx context.Context) error {
 		return core.ErrHistoryEmpty
 	}
 
-	// Get last undone operation
 	last := lines[len(lines)-1]
 	var op core.Operation
 	if err := json.Unmarshal([]byte(last), &op); err != nil {
 		return fmt.Errorf("failed to parse operation: %w", err)
 	}
 
-	// Recreate operation (rebuild files/folders)
 	if h.Recreator != nil {
 		if err := h.Recreator.RecreateOperation(ctx, op); err != nil {
 			return fmt.Errorf("failed to recreate operation: %w", err)
@@ -130,12 +118,10 @@ func (h *History) Redo(ctx context.Context) error {
 		return fmt.Errorf("cannot redo: recreator not set")
 	}
 
-	// Remove from undo stack
 	if err := truncateLastLine(h.UndoStackPath); err != nil {
 		return fmt.Errorf("failed to update undo stack: %w", err)
 	}
 
-	// Add back to main history (without clearing undo stack)
 	if err := h.recordWithoutClearingUndoStack(ctx, op); err != nil {
 		return fmt.Errorf("failed to restore to history: %w", err)
 	}
@@ -143,7 +129,6 @@ func (h *History) Redo(ctx context.Context) error {
 	return nil
 }
 
-// recordWithoutClearingUndoStack untuk redo (tanpa clear undo stack)
 func (h *History) recordWithoutClearingUndoStack(ctx context.Context, op core.Operation) error {
 	if op.Timestamp == "" {
 		op.Timestamp = time.Now().Format(time.RFC3339)
@@ -159,7 +144,6 @@ func (h *History) recordWithoutClearingUndoStack(ctx context.Context, op core.Op
 	return enc.Encode(op)
 }
 
-// undoOperation performs the actual undo logic
 func (h *History) undoOperation(op core.Operation) error {
 	switch op.Type {
 	case core.OpCreate, core.OpAIApply:
@@ -176,18 +160,15 @@ func (h *History) undoOperation(op core.Operation) error {
 	}
 }
 
-// undoCreate: rollback OpCreate atau OpAIApply
 func (h *History) undoCreate(op core.Operation) error {
 	var errors []string
 
-	// Delete files first
 	for _, f := range op.Receipt.CreatedFiles {
 		if err := os.Remove(f); err != nil && !os.IsNotExist(err) {
 			errors = append(errors, fmt.Sprintf("file %s: %v", f, err))
 		}
 	}
 
-	// Delete directories (deepest first)
 	dirs := op.Receipt.CreatedDirs
 	sort.Slice(dirs, func(i, j int) bool {
 		return len(dirs[i]) > len(dirs[j])
@@ -195,7 +176,6 @@ func (h *History) undoCreate(op core.Operation) error {
 
 	for _, d := range dirs {
 		if err := os.Remove(d); err != nil && !os.IsNotExist(err) {
-			// Directory might not be empty, that's ok for now
 			continue
 		}
 	}
@@ -210,7 +190,6 @@ func (h *History) undoCreate(op core.Operation) error {
 	return nil
 }
 
-// undoReverse: rollback OpReverse
 func (h *History) undoReverse(op core.Operation) error {
 	if err := os.Remove(op.Target); err != nil && !os.IsNotExist(err) {
 		return fmt.Errorf("failed to remove reversed blueprint %s: %w", op.Target, err)
@@ -218,7 +197,6 @@ func (h *History) undoReverse(op core.Operation) error {
 	return nil
 }
 
-// undoAIBlueprint: rollback OpAI (aistruct blueprint mode)
 func (h *History) undoAIBlueprint(op core.Operation) error {
 	if err := os.Remove(op.Target); err != nil && !os.IsNotExist(err) {
 		return fmt.Errorf("failed to remove AI blueprint %s: %w", op.Target, err)
@@ -226,7 +204,6 @@ func (h *History) undoAIBlueprint(op core.Operation) error {
 	return nil
 }
 
-// pushToUndoStack: save operation to undo stack for redo
 func (h *History) pushToUndoStack(op core.Operation) error {
 	_ = os.MkdirAll(filepath.Dir(h.UndoStackPath), 0o755)
 	f, err := os.OpenFile(h.UndoStackPath, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0o644)
@@ -238,7 +215,6 @@ func (h *History) pushToUndoStack(op core.Operation) error {
 	return enc.Encode(op)
 }
 
-// clearUndoStack: hapus undo stack (dipanggil saat operasi baru)
 func (h *History) clearUndoStack() error {
 	if _, err := os.Stat(h.UndoStackPath); os.IsNotExist(err) {
 		return nil
@@ -246,7 +222,6 @@ func (h *History) clearUndoStack() error {
 	return os.Remove(h.UndoStackPath)
 }
 
-// List: tampilkan history
 func (h *History) List(ctx context.Context) ([]core.Operation, error) {
 	data, err := os.ReadFile(h.LogPath)
 	if err != nil {
@@ -265,7 +240,7 @@ func (h *History) List(ctx context.Context) ([]core.Operation, error) {
 		}
 		var op core.Operation
 		if err := json.Unmarshal([]byte(line), &op); err != nil {
-			continue // Skip invalid lines
+			continue
 		}
 		ops = append(ops, op)
 	}
@@ -273,7 +248,6 @@ func (h *History) List(ctx context.Context) ([]core.Operation, error) {
 	return ops, nil
 }
 
-// ListUndoStack: tampilkan operasi yang bisa di-redo
 func (h *History) ListUndoStack(ctx context.Context) ([]core.Operation, error) {
 	data, err := os.ReadFile(h.UndoStackPath)
 	if err != nil {
@@ -300,14 +274,11 @@ func (h *History) ListUndoStack(ctx context.Context) ([]core.Operation, error) {
 	return ops, nil
 }
 
-// Clear: hapus semua history dan undo stack
 func (h *History) Clear(ctx context.Context) error {
 	_ = os.Remove(h.LogPath)
 	_ = os.Remove(h.UndoStackPath)
 	return nil
 }
-
-// --- Helper functions ---
 
 func truncateLastLine(path string) error {
 	data, err := os.ReadFile(path)
