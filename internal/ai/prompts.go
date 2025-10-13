@@ -33,6 +33,37 @@ database/
 Now generate a project structure for:`
 }
 
+func NormalizePrompt(inputContent string) string {
+	return fmt.Sprintf(`You are a project structure normalizer.
+
+TASK: Convert the following structure into the correct .struct format.
+
+CRITICAL OUTPUT RULES:
+1. Start with EXACTLY ONE root folder name (e.g., "project/")
+2. All other content must be indented under this root
+3. Use TAB characters (\t) for indentation, NEVER spaces
+4. Folders MUST end with "/" (forward slash)
+5. Files have extensions, no trailing slash
+6. Output ONLY the structure, no markdown, no code blocks, no explanations
+7. Preserve the folder and file names from input
+8. Maintain the hierarchy/nesting from input
+
+CORRECT OUTPUT FORMAT:
+project/
+	src/
+		index.js
+		routes/
+			api.js
+	config/
+		database.js
+	package.json
+
+INPUT TO CONVERT:
+%s
+
+Now convert this to proper .struct format following all rules above. Output ONLY the structure.`, inputContent)
+}
+
 func RetryPrompt(originalPrompt string, validationErr error) string {
 	return fmt.Sprintf(`⚠️ YOUR PREVIOUS OUTPUT WAS REJECTED: %s
 
