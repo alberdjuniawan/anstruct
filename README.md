@@ -33,54 +33,86 @@ anstruct watch ./my-app ./my-app.struct --full
 
 ## Installation
 
-### From Source
+### Prerequisites
+- Go 1.21 or higher
+- Git
 
-```bash
-# Clone repository
-git clone https://github.com/alberdjuniawan/anstruct.git
-cd anstruct
-
-# Build binary locally
-# Linux/macOS:
-go build -o anstruct ./cmd/anstruct
-# Windows:
-go build -o anstruct.exe ./cmd/anstruct
-
-# Install globally (optional)
-go install ./cmd/anstruct
-
-'
-Notes:
-- Windows: run with .\anstruct.exe in PowerShell
-- Linux/macOS: run with ./anstruct
-- Installing globally (go install) will put the binary in your Go bin folder:
-    - Windows: C:\Users\<username>\go\bin
-    - Linux/macOS: $HOME/go/bin
-- Make sure the bin folder is in your PATH to run `anstruct` directly
-- Create an alias manually (optional):
-	- Windows (PowerShell):
-	'Set-Alias anstruct
-	"D:\path\to\anstruct.exe"'
-	- Linux/maxOS (bash/zsh):
-	'alias anstruct="$HOME/path/to/anstruct"'
-	Add it to your ~/.bashrc or ~/.zshrc to make it permanent.
-'
-```
-
-### Using Go Install
+### Option 1: Using Go Install (Recommended)
 
 ```bash
 go install github.com/alberdjuniawan/anstruct/cmd/anstruct@latest
-
-'
-Notes:
-- Works on Windows, Linux, and macOS
-- Binary is automatically placed in your Go bin folder (see above)
-- Recommended for all operating systems, allows direct usage:
-  anstruct aistruct "nodejs express api with auth" -o disini.struct
-- If the command is not recognized, make sure Go bin folder is in your PATH and open a new terminal session
-'
 ```
+
+This will automatically:
+- Download and install the latest version
+- Place the binary in your Go bin directory
+- Work on Windows, Linux, and macOS
+
+**Verify installation:**
+```bash
+anstruct --version
+```
+
+> **Note**: If `anstruct` command is not recognized, ensure your Go bin directory is in PATH and restart your terminal.
+
+<details>
+<summary>Adding Go bin to PATH</summary>
+
+**Linux/macOS (bash)**
+```bash
+echo 'export PATH=$PATH:$HOME/go/bin' >> ~/.bashrc
+source ~/.bashrc
+```
+
+**Linux/macOS (zsh)**
+```bash
+echo 'export PATH=$PATH:$HOME/go/bin' >> ~/.zshrc
+source ~/.zshrc
+```
+
+**Windows (PowerShell - Run as Administrator)**
+```powershell
+[Environment]::SetEnvironmentVariable("Path", $env:Path + ";$env:USERPROFILE\go\bin", "User")
+```
+Then restart your terminal.
+
+</details>
+
+### Option 2: From Source
+
+1. **Clone the repository**
+   ```bash
+   git clone https://github.com/alberdjuniawan/anstruct.git
+   cd anstruct
+   ```
+
+2. **Build the binary**
+   
+   Linux/macOS:
+   ```bash
+   go build -o anstruct ./cmd/anstruct
+   ```
+   
+   Windows (PowerShell):
+   ```powershell
+   go build -o anstruct.exe ./cmd/anstruct
+   ```
+
+3. **Install globally (optional)**
+   ```bash
+   go install ./cmd/anstruct
+   ```
+
+**Usage after local build:**
+```bash
+# Linux/macOS
+./anstruct --version
+
+# Windows (PowerShell)
+.\anstruct.exe --version
+```
+
+---
 
 ## Quick Start
 
