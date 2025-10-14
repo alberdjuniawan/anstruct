@@ -2,7 +2,7 @@ package generator
 
 import (
 	"context"
-	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 
@@ -37,11 +37,18 @@ func writeNode(n *core.Node, base string, opts core.GenerateOptions, r *core.Rec
 	switch n.Type {
 	case core.NodeDir:
 		if !opts.DryRun {
-			if err := os.MkdirAll(target, 0o755); err != nil {
-				return err
+			if info, err := os.Stat(target); err == nil {
+				if !info.IsDir() {
+					return fmt.Errorf("cannot create directory %s: path exists as a file", target)
+				}
+			} else {
+				if err := os.MkdirAll(target, 0o755); err != nil {
+					return fmt.Errorf("failed to create directory %s: %w", target, err)
+				}
 			}
 		}
 		r.CreatedDirs = append(r.CreatedDirs, target)
+		
 		for _, c := range n.Children {
 			if err := writeNode(c, target, opts, r); err != nil {
 				return err
@@ -49,10 +56,18 @@ func writeNode(n *core.Node, base string, opts core.GenerateOptions, r *core.Rec
 		}
 
 	case core.NodeFile:
+		parentDir := filepath.Dir(target)
 		if !opts.DryRun {
+			if err := os.MkdirAll(parentDir, 0o755); err != nil {
+				return fmt.Errorf("failed to create parent directory %s: %w", parentDir, err)
+			}
+
 			if !opts.Force {
-				if _, err := os.Stat(target); err == nil {
-					return errors.New("file exists: " + target)
+				if info, err := os.Stat(target); err == nil {
+					if info.IsDir() {
+						return fmt.Errorf("cannot create file %s: path exists as a directory", target)
+					}
+					return fmt.Errorf("file exists: %s (use --force to overwrite)", target)
 				}
 			} else {
 				if existing, err := os.ReadFile(target); err == nil {
@@ -64,12 +79,12 @@ func writeNode(n *core.Node, base string, opts core.GenerateOptions, r *core.Rec
 
 			f, err := os.OpenFile(target, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o644)
 			if err != nil {
-				return err
+				return fmt.Errorf("failed to create file %s: %w", target, err)
 			}
 			defer f.Close()
 
 			if _, err := f.WriteString(n.Content); err != nil {
-				return err
+				return fmt.Errorf("failed to write file %s: %w", target, err)
 			}
 		}
 		r.CreatedFiles = append(r.CreatedFiles, target)
