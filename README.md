@@ -57,6 +57,13 @@ Notes:
     - Windows: C:\Users\<username>\go\bin
     - Linux/macOS: $HOME/go/bin
 - Make sure the bin folder is in your PATH to run `anstruct` directly
+- Create an alias manually (optional):
+	- Windows (PowerShell):
+	'Set-Alias anstruct
+	"D:\path\to\anstruct.exe"'
+	- Linux/maxOS (bash/zsh):
+	'alias anstruct="$HOME/path/to/anstruct"'
+	Add it to your ~/.bashrc or ~/.zshrc to make it permanent.
 '
 ```
 
