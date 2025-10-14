@@ -144,12 +144,10 @@ func modeLabel(half string, full bool) string {
 	return "unknown"
 }
 
-// addReservedAllowed marks blueprint file and reserved directories as allowed
 func addReservedAllowed(project string, blueprint string, allowed map[string]bool) {
 	projectAbs, _ := filepath.Abs(project)
 	blueprintAbs, _ := filepath.Abs(blueprint)
 
-	// Allow the blueprint file itself if inside project
 	if isSubPath(blueprintAbs, projectAbs) {
 		rel, err := filepath.Rel(projectAbs, blueprintAbs)
 		if err == nil {
@@ -157,7 +155,6 @@ func addReservedAllowed(project string, blueprint string, allowed map[string]boo
 		}
 	}
 
-	// Allow reserved directories and .struct files
 	_ = filepath.WalkDir(projectAbs, func(path string, d os.DirEntry, err error) error {
 		if err != nil {
 			return nil
