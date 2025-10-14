@@ -47,7 +47,7 @@ Examples:
 		newAIStructCmd(),
 		newMStructCmd(),
 		newRStructCmd(),
-		newNormalizeCmd(), // NEW: Normalize command
+		newConvertCmd(),
 		newWatchCmd(svc),
 		newHistoryCmd(),
 	)

@@ -91,6 +91,8 @@ func parseScanner(scanner *bufio.Scanner, rootName string) (*core.Tree, error) {
 		depth := countIndent(line)
 		entry := trimmed
 
+		// 🔥 CRITICAL: Explicit folder detection
+		// ONLY entries ending with "/" are folders
 		explicitDir := strings.HasSuffix(entry, "/")
 
 		tmp := entry
@@ -98,6 +100,8 @@ func parseScanner(scanner *bufio.Scanner, rootName string) (*core.Tree, error) {
 			tmp = strings.TrimSuffix(tmp, "/")
 		}
 
+		// 🔥 CRITICAL: File detection by extension
+		// If has dot AND not explicitly marked as folder, it's a file
 		isFileByExt := strings.Contains(tmp, ".")
 
 		name := sanitize(tmp)
@@ -105,6 +109,7 @@ func parseScanner(scanner *bufio.Scanner, rootName string) (*core.Tree, error) {
 			return nil, fmt.Errorf("invalid entry name at line %d: %q", lineNum, entry)
 		}
 
+		// 🔥 DEFAULT TO DIRECTORY first
 		n := &core.Node{
 			Type:         core.NodeDir,
 			Name:         name,
@@ -112,6 +117,9 @@ func parseScanner(scanner *bufio.Scanner, rootName string) (*core.Tree, error) {
 			Content:      "",
 		}
 
+		// 🔥 ONLY mark as file if:
+		// 1. Has extension (contains dot)
+		// 2. NOT explicitly marked as folder (no trailing /)
 		if isFileByExt && !explicitDir {
 			n.Type = core.NodeFile
 		}
@@ -132,6 +140,7 @@ func parseScanner(scanner *bufio.Scanner, rootName string) (*core.Tree, error) {
 
 		parent := stack[len(stack)-1].node
 
+		// If parent has children, it must be a directory
 		if parent.Type != core.NodeDir {
 			parent.Type = core.NodeDir
 			if !strings.HasSuffix(parent.OriginalName, "/") {
@@ -147,6 +156,7 @@ func parseScanner(scanner *bufio.Scanner, rootName string) (*core.Tree, error) {
 		return nil, fmt.Errorf("scanner error: %w", err)
 	}
 
+	// Post-processing: fix any nodes with children to be directories
 	var fix func(*core.Node)
 	fix = func(n *core.Node) {
 		if len(n.Children) > 0 {
