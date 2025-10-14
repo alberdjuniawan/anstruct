@@ -2,7 +2,7 @@
 
 [![Go Version](https://img.shields.io/badge/Go-1.21+-00ADD8?style=flat&logo=go)](https://golang.org)
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
-[![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](CONTRIBUTING.md)
+[![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](https://github.com/alberdjuniawan/anstruct/blob/main/docs/CONTRIBUTING.md)
 
 **Anstruct** is a powerful CLI tool that revolutionizes project structure management using AI. Generate, reverse-engineer, normalize, and sync project structures with simple commands.
 
