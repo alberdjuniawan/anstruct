@@ -40,17 +40,39 @@ anstruct watch ./my-app ./my-app.struct --full
 git clone https://github.com/alberdjuniawan/anstruct.git
 cd anstruct
 
-# Build
+# Build binary locally
+# Linux/macOS:
 go build -o anstruct ./cmd/anstruct
+# Windows:
+go build -o anstruct.exe ./cmd/anstruct
 
 # Install globally (optional)
 go install ./cmd/anstruct
+
+'
+Notes:
+- Windows: run with .\anstruct.exe in PowerShell
+- Linux/macOS: run with ./anstruct
+- Installing globally (go install) will put the binary in your Go bin folder:
+    - Windows: C:\Users\<username>\go\bin
+    - Linux/macOS: $HOME/go/bin
+- Make sure the bin folder is in your PATH to run `anstruct` directly
+'
 ```
 
 ### Using Go Install
 
 ```bash
 go install github.com/alberdjuniawan/anstruct/cmd/anstruct@latest
+
+'
+Notes:
+- Works on Windows, Linux, and macOS
+- Binary is automatically placed in your Go bin folder (see above)
+- Recommended for all operating systems, allows direct usage:
+  anstruct aistruct "nodejs express api with auth" -o disini.struct
+- If the command is not recognized, make sure Go bin folder is in your PATH and open a new terminal session
+'
 ```
 
 ## Quick Start
