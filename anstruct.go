@@ -8,10 +8,10 @@ import (
 	"time"
 
 	"github.com/alberdjuniawan/anstruct/internal/ai"
+	"github.com/alberdjuniawan/anstruct/internal/converter"
 	"github.com/alberdjuniawan/anstruct/internal/core"
 	"github.com/alberdjuniawan/anstruct/internal/generator"
 	"github.com/alberdjuniawan/anstruct/internal/history"
-	"github.com/alberdjuniawan/anstruct/internal/normalizer"
 	"github.com/alberdjuniawan/anstruct/internal/parser"
 	"github.com/alberdjuniawan/anstruct/internal/reverser"
 	"github.com/alberdjuniawan/anstruct/internal/validator"
@@ -19,13 +19,12 @@ import (
 )
 
 type Service struct {
-	Gen        *ai.AIGenerator
-	Parser     core.Parser
-	Reverser   core.Reverser
-	Validator  core.Validator
-	History    core.History
-	Writer     *generator.Generator
-	Normalizer *normalizer.Normalizer
+	Gen       *ai.AIGenerator
+	Parser    core.Parser
+	Reverser  core.Reverser
+	Validator core.Validator
+	History   core.History
+	Writer    *generator.Generator
 }
 
 // OperationRecreator implements history.OperationRecreator
@@ -38,16 +37,14 @@ func NewService(endpoint, historyPath string) *Service {
 	provider := ai.NewGeminiProvider(endpoint)
 
 	s := &Service{
-		Gen:        ai.NewAIGenerator(provider, p),
-		Parser:     p,
-		Reverser:   reverser.New(),
-		Validator:  validator.New(),
-		History:    history.New(historyPath),
-		Writer:     generator.New(),
-		Normalizer: normalizer.New(),
+		Gen:       ai.NewAIGenerator(provider, p),
+		Parser:    p,
+		Reverser:  reverser.New(),
+		Validator: validator.New(),
+		History:   history.New(historyPath),
+		Writer:    generator.New(),
 	}
 
-	// Setup recreator untuk redo functionality
 	recreator := &OperationRecreator{svc: s}
 	if hist, ok := s.History.(*history.History); ok {
 		hist.SetRecreator(recreator)
@@ -81,7 +78,7 @@ func (r *OperationRecreator) recreateCreate(ctx context.Context, op core.Operati
 		return fmt.Errorf("cannot recreate: blueprint file not found: %s", op.BlueprintPath)
 	}
 
-	fmt.Printf("🔄 Recreating from blueprint: %s\n", op.BlueprintPath)
+	fmt.Printf("📄 Recreating from blueprint: %s\n", op.BlueprintPath)
 
 	tree, err := r.svc.Parser.Parse(ctx, op.BlueprintPath)
 	if err != nil {
@@ -174,7 +171,6 @@ func (r *OperationRecreator) recreateAIBlueprint(ctx context.Context, op core.Op
 func (s *Service) AIStruct(ctx context.Context, prompt, outPath string, opts core.AIOptions) error {
 	fmt.Printf("🤖 Generating from prompt: %s\n", prompt)
 
-	// FromPrompt already uses CleanAIOutput internally (in ai/generator.go)
 	tree, rawOutput, err := s.Gen.FromPrompt(ctx, prompt, opts.Retries)
 
 	if opts.Verbose && rawOutput != "" {
@@ -233,12 +229,11 @@ func (s *Service) applyDirectly(ctx context.Context, tree *core.Tree, outPath, p
 	fmt.Printf("   📂 %d directories created\n", len(receipt.CreatedDirs))
 	fmt.Printf("   📄 %d files created\n", len(receipt.CreatedFiles))
 	fmt.Printf("\n📍 Location: %s\n", outPath)
-
 	return nil
 }
 
 func (s *Service) saveBlueprint(ctx context.Context, tree *core.Tree, outPath, prompt string) error {
-	fmt.Printf("\n📝 Saving blueprint: %s\n", outPath)
+	fmt.Printf("\n📁 Saving blueprint: %s\n", outPath)
 
 	dir := filepath.Dir(outPath)
 	if dir != "." && dir != "" {
@@ -316,81 +311,37 @@ func (s *Service) RStruct(ctx context.Context, inputDir string, outPath string) 
 		Type:   core.OpReverse,
 		Target: outPath,
 	})
-
 	return nil
 }
 
-// NormalizeStruct converts any text-based structure format to .struct format
-// Strategy: Try rule-based first (fast, offline), fallback to AI if low confidence
+// NormalizeStruct using converter system with AI normalization
 func (s *Service) NormalizeStruct(ctx context.Context, inputContent, outPath string, opts core.AIOptions) error {
-	fmt.Println("🔄 Normalizing structure format...")
+	fmt.Println("📄 Starting normalization with converter system...")
 
-	// Step 1: Try rule-based normalization (offline, fast)
-	normalized, confidence, err := s.Normalizer.NormalizeToStruct(inputContent)
+	// Converter with auto-detection + AI fallback
+	converter := converter.NewWithAI(s.Gen.Provider, s.Parser, converter.ModeAuto)
 
-	if err == nil && confidence >= 70 {
-		// High confidence - use rule-based result
-		fmt.Printf("✨ Normalized using pattern matching (confidence: %d%%)\n", confidence)
-
-		if validateErr := s.Normalizer.ValidateStructOutput(normalized); validateErr != nil {
-			fmt.Printf("⚠️  Validation failed: %v\n", validateErr)
-			fmt.Println("📡 Falling back to AI normalization...")
-			return s.normalizeWithAI(ctx, inputContent, outPath, opts)
-		}
-
-		return s.saveNormalizedOutput(ctx, normalized, outPath, opts)
+	tree, detected, err := converter.Convert(ctx, inputContent)
+	if err != nil {
+		return fmt.Errorf("conversion failed (%s): %w", detected, err)
 	}
 
-	// Step 2: Low confidence or error - use AI normalization
-	if confidence < 70 {
-		fmt.Printf("⚠️  Low confidence (%d%%), using AI normalization...\n", confidence)
-	} else {
-		fmt.Printf("⚠️  Rule-based normalization failed: %v\n", err)
-		fmt.Println("📡 Falling back to AI normalization...")
-	}
-
-	return s.normalizeWithAI(ctx, inputContent, outPath, opts)
-}
-
-// normalizeWithAI uses AI to normalize structure (with proper cleaning)
-func (s *Service) normalizeWithAI(ctx context.Context, inputContent, outPath string, opts core.AIOptions) error {
-	// Build normalize prompt using ai.NormalizePrompt()
-	prompt := ai.NormalizePrompt(inputContent)
+	fmt.Printf("✅ Detected input format: %s\n", detected)
 
 	if opts.Verbose {
-		fmt.Println("\n📋 Normalize Prompt:")
+		fmt.Println("\n📋 Normalized Structure (.struct):")
 		fmt.Println("---")
-		fmt.Println(prompt)
+		fmt.Println(converter.ConvertToString(tree))
 		fmt.Println("---")
-	}
-
-	// Generate using AI (this internally uses CleanAIOutput)
-	tree, rawOutput, err := s.Gen.FromPrompt(ctx, prompt, opts.Retries)
-
-	if opts.Verbose && rawOutput != "" {
-		fmt.Println("\n📋 AI Raw Output:")
-		fmt.Println("---")
-		fmt.Println(rawOutput)
-		fmt.Println("---")
-	}
-
-	if err != nil {
-		if rawOutput != "" {
-			fallbackFile := "normalize_invalid_" + time.Now().Format("20060102_150405") + ".txt"
-			_ = os.WriteFile(fallbackFile, []byte(rawOutput), 0644)
-			return fmt.Errorf("%w\n💾 Raw output saved to: %s", err, fallbackFile)
-		}
-		return fmt.Errorf("AI normalization failed: %w", err)
 	}
 
 	if opts.DryRun {
 		fmt.Println("\n📂 Preview of normalized structure:")
 		displayTree(tree.Root, 0)
-		fmt.Printf("\n✅ Dry run complete. No files written.\n")
+		fmt.Println("\n✅ Dry run complete. No files written.")
 		return nil
 	}
 
-	// Save normalized blueprint
 	dir := filepath.Dir(outPath)
 	if dir != "." && dir != "" {
 		if err := os.MkdirAll(dir, 0755); err != nil {
@@ -402,51 +353,21 @@ func (s *Service) normalizeWithAI(ctx context.Context, inputContent, outPath str
 		return fmt.Errorf("failed to write normalized blueprint: %w", err)
 	}
 
-	fmt.Printf("\n✅ Structure normalized and saved to: %s\n", outPath)
-	fmt.Println("💡 You can now use: anstruct mstruct " + outPath)
-	return nil
-}
-
-// saveNormalizedOutput saves rule-based normalized output
-func (s *Service) saveNormalizedOutput(ctx context.Context, normalized, outPath string, opts core.AIOptions) error {
-	if opts.Verbose {
-		fmt.Println("\n📋 Normalized Output:")
-		fmt.Println("---")
-		fmt.Println(normalized)
-		fmt.Println("---")
-	}
-
-	// Parse the normalized content to validate it's proper .struct
-	tree, err := s.Parser.ParseString(ctx, normalized)
-	if err != nil {
-		return fmt.Errorf("failed to parse normalized output: %w", err)
-	}
-
-	if opts.DryRun {
-		fmt.Println("\n📂 Preview of normalized structure:")
-		displayTree(tree.Root, 0)
-		fmt.Printf("\n✅ Dry run complete. No files written.\n")
-		return nil
-	}
-
-	// Save to file
-	dir := filepath.Dir(outPath)
-	if dir != "." && dir != "" {
-		if err := os.MkdirAll(dir, 0755); err != nil {
-			return fmt.Errorf("failed to create directory: %w", err)
-		}
-	}
-
-	if err := os.WriteFile(outPath, []byte(normalized), 0644); err != nil {
-		return fmt.Errorf("failed to write normalized file: %w", err)
-	}
+	_ = s.History.Record(ctx, core.Operation{
+		Type:   core.OpNormalize,
+		Target: outPath,
+		Meta: map[string]string{
+			"detected_format": string(detected),
+			"mode":            string(converter.Normalizer.Mode),
+		},
+	})
 
 	fmt.Printf("\n✅ Structure normalized and saved to: %s\n", outPath)
 	fmt.Println("💡 You can now use: anstruct mstruct " + outPath)
 	return nil
 }
 
-// Watch provides real-time sync between project and blueprint
+// Watch syncs project ↔ blueprint in realtime
 func (s *Service) Watch(ctx context.Context, projectPath, blueprintPath string, debounce time.Duration, verbose bool) error {
 	w := watcher.New()
 	cfg := watcher.SyncConfig{
