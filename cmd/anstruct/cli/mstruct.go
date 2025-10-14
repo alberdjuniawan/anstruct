@@ -35,7 +35,6 @@ Examples:
 		RunE: func(cmd *cobra.Command, args []string) error {
 			structFile := filepath.Clean(args[0])
 
-			// Validate input file
 			info, err := os.Stat(structFile)
 			if os.IsNotExist(err) {
 				return fmt.Errorf("file not found: %s", structFile)
@@ -47,7 +46,6 @@ Examples:
 				return fmt.Errorf("invalid file type: %s (must be .struct)", structFile)
 			}
 
-			// Prepare output directory
 			cleanOutDir := filepath.Clean(outDir)
 			if _, err := os.Stat(cleanOutDir); os.IsNotExist(err) {
 				if mkErr := os.MkdirAll(cleanOutDir, 0755); mkErr != nil {
@@ -55,7 +53,6 @@ Examples:
 				}
 			}
 
-			// Print operation info
 			fmt.Printf("🚧 Generating project from %s → %s\n", structFile, cleanOutDir)
 			if dry {
 				fmt.Println("💡 Dry run mode enabled: no files will be written.")
@@ -64,7 +61,6 @@ Examples:
 				fmt.Println("⚠️  --allow-reserved enabled: reserved folders will be included")
 			}
 
-			// Generate project
 			receipt, err := svc.MStruct(ctx, structFile, cleanOutDir, core.GenerateOptions{
 				DryRun:        dry,
 				Force:         force,
@@ -74,7 +70,6 @@ Examples:
 				return fmt.Errorf("generation failed: %w", err)
 			}
 
-			// Show detailed preview if requested
 			if dry && verbose {
 				fmt.Println("\n📂 Preview of what would be generated:")
 				if len(receipt.CreatedDirs) > 0 {
@@ -91,7 +86,6 @@ Examples:
 				}
 			}
 
-			// Success message
 			fmt.Printf("\n✅ Done! %d directories, %d files created.\n",
 				len(receipt.CreatedDirs), len(receipt.CreatedFiles))
 
