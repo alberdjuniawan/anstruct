@@ -1,4 +1,4 @@
-\package parser
+package parser
 
 import (
 	"bufio"
@@ -103,7 +103,6 @@ func parseScanner(scanner *bufio.Scanner, rootName string) (*core.Tree, error) {
 			return nil, fmt.Errorf("invalid entry name at line %d: %q", lineNum, entry)
 		}
 
-
 		n := &core.Node{
 			Type:         core.NodeFile,
 			Name:         name,
@@ -183,7 +182,7 @@ func countIndent(s string) int {
 	}
 
 	if spaces > 0 && !warnedSpaces {
-		fmt.Println("⚠️  Warning: indentasi pakai spasi, disarankan pakai tab untuk konsistensi")
+		fmt.Println("Warning: indentasi pakai spasi, disarankan pakai tab untuk konsistensi")
 		warnedSpaces = true
 	}
 
