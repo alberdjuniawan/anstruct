@@ -20,16 +20,18 @@ type Tree struct {
 }
 
 type GenerateOptions struct {
-	DryRun bool
-	Force  bool
+	DryRun        bool
+	Force         bool
+	AllowReserved bool
 }
 
 type AIOptions struct {
-	Apply   bool
-	DryRun  bool
-	Verbose bool
-	Retries int
-	Force   bool
+	Apply         bool
+	DryRun        bool
+	Verbose       bool
+	Retries       int
+	Force         bool
+	AllowReserved bool
 }
 
 type Receipt struct {
