@@ -14,7 +14,11 @@ type Reverser struct{}
 func New() *Reverser { return &Reverser{} }
 
 func (r *Reverser) Reverse(ctx context.Context, inputDir string) (*core.Tree, error) {
-	root := &core.Node{Type: core.NodeDir, Name: filepath.Base(inputDir), OriginalName: filepath.Base(inputDir) + "/"}
+	root := &core.Node{
+		Type:         core.NodeDir,
+		Name:         filepath.Base(inputDir),
+		OriginalName: filepath.Base(inputDir) + "/",
+	}
 
 	err := filepath.WalkDir(inputDir, func(path string, d os.DirEntry, err error) error {
 		if err != nil {
@@ -47,23 +51,34 @@ func insert(root *core.Node, parts []string, d os.DirEntry) {
 				break
 			}
 		}
+
 		if next == nil {
-			t := core.NodeDir
-			orig := name + "/"
-			if last && !d.IsDir() {
-				t = core.NodeFile
-				orig = name
+			nodeType := core.NodeFile
+			originalName := name
+
+			if last && d.IsDir() {
+				nodeType = core.NodeDir
+				originalName = name + "/"
+			} else if !last {
+				nodeType = core.NodeDir
+				originalName = name + "/"
 			}
-			next = &core.Node{Type: t, Name: name, OriginalName: orig}
+
+			next = &core.Node{
+				Type:         nodeType,
+				Name:         name,
+				OriginalName: originalName,
+			}
 			cur.Children = append(cur.Children, next)
 		} else {
-			if last == false && next.Type == core.NodeFile {
+			if !last && next.Type == core.NodeFile {
 				next.Type = core.NodeDir
 				if !strings.HasSuffix(next.OriginalName, "/") {
 					next.OriginalName = next.Name + "/"
 				}
 			}
 		}
+
 		cur = next
 	}
 }
