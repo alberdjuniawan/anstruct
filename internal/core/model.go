@@ -40,10 +40,11 @@ type Receipt struct {
 type OperationType string
 
 const (
-	OpCreate  OperationType = "create"
-	OpReverse OperationType = "reverse"
-	OpAI      OperationType = "ai_generate"
-	OpAIApply OperationType = "ai_generate_apply"
+	OpCreate    OperationType = "create"
+	OpReverse   OperationType = "reverse"
+	OpAI        OperationType = "ai_generate"
+	OpAIApply   OperationType = "ai_generate_apply"
+	OpNormalize OperationType = "normalize"
 )
 
 type Operation struct {
@@ -53,4 +54,5 @@ type Operation struct {
 	Timestamp     string
 	BlueprintPath string
 	SourcePrompt  string
+	Meta          map[string]string
 }
