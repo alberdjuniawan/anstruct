@@ -18,6 +18,7 @@ type Reverser interface {
 
 type Validator interface {
 	Validate(ctx context.Context, tree *Tree) error
+	ValidateWithOptions(ctx context.Context, tree *Tree, allowReserved bool) error
 }
 
 type History interface {
