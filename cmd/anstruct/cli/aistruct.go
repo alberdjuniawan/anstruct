@@ -2,6 +2,8 @@ package cli
 
 import (
 	"fmt"
+	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/alberdjuniawan/anstruct/internal/core"
@@ -31,20 +33,17 @@ Examples:
   anstruct aistruct "flutter app with auth" -o ./myapp.struct
   anstruct aistruct "nodejs api with routes" --apply -o ./myapi
   anstruct aistruct "react dashboard" --dry --verbose
-  anstruct aistruct "golang microservice" --apply --force`,
+  anstruct aistruct "golang microservice" --apply --force
+  anstruct aistruct "python api" -o ./output/     # saves to output/aistruct.struct
+  anstruct aistruct "rust cli" -o ./mycli         # saves to mycli.struct`,
 
 		Args: cobra.MinimumNArgs(1),
 
 		RunE: func(cmd *cobra.Command, args []string) error {
 			prompt := strings.Join(args, " ")
 
-			if outFile == "" {
-				if apply {
-					outFile = "./aiproject"
-				} else {
-					outFile = "aistruct.struct"
-				}
-			}
+			// Resolve output path with smart detection
+			outFile = resolveAIOutputPath(outFile, apply)
 
 			isStructOutput := strings.HasSuffix(outFile, ".struct")
 			if !apply && !isStructOutput && !dry {
@@ -86,4 +85,55 @@ Examples:
 	cmd.Flags().BoolVar(&force, "force", false, "overwrite existing files when using --apply")
 
 	return cmd
+}
+
+// resolveAIOutputPath determines the correct output path
+// Examples:
+//
+//	""           -> "aistruct.struct" (blueprint) or "./aiproject" (apply)
+//	"./beto"     -> "beto.struct" (blueprint) or "./beto" (apply)
+//	"./beto/"    -> "./beto/aistruct.struct" (blueprint) or "./beto/aiproject" (apply)
+//	"out.struct" -> "out.struct" (blueprint only)
+func resolveAIOutputPath(outArg string, apply bool) string {
+	// Default behavior
+	if outArg == "" {
+		if apply {
+			return "./aiproject"
+		}
+		return "aistruct.struct"
+	}
+
+	clean := filepath.Clean(outArg)
+
+	// If already ends with .struct, use as-is (blueprint mode only)
+	if strings.HasSuffix(clean, ".struct") {
+		return clean
+	}
+
+	// Check if it's a directory (ends with / or \ or is existing dir)
+	isDir := strings.HasSuffix(outArg, "/") || strings.HasSuffix(outArg, "\\")
+	if !isDir {
+		if info, err := os.Stat(clean); err == nil && info.IsDir() {
+			isDir = true
+		}
+	}
+
+	// If directory path
+	if isDir {
+		if apply {
+			return filepath.Join(clean, "aiproject")
+		}
+		return filepath.Join(clean, "aistruct.struct")
+	}
+
+	// Plain name without extension
+	if filepath.Ext(clean) == "" {
+		if apply {
+			return clean // Use as folder name
+		}
+		return clean + ".struct" // Add .struct extension
+	}
+
+	// Has other extension, use as-is
+	return clean
 }
