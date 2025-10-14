@@ -27,7 +27,6 @@ type Service struct {
 	Writer    *generator.Generator
 }
 
-// OperationRecreator implements history.OperationRecreator
 type OperationRecreator struct {
 	svc *Service
 }
@@ -53,7 +52,6 @@ func NewService(endpoint, historyPath string) *Service {
 	return s
 }
 
-// RecreateOperation implements redo logic for different operation types
 func (r *OperationRecreator) RecreateOperation(ctx context.Context, op core.Operation) error {
 	switch op.Type {
 	case core.OpCreate:
@@ -167,7 +165,6 @@ func (r *OperationRecreator) recreateAIBlueprint(ctx context.Context, op core.Op
 	return nil
 }
 
-// AIStruct generates project structure from natural language
 func (s *Service) AIStruct(ctx context.Context, prompt, outPath string, opts core.AIOptions) error {
 	fmt.Printf("🤖 Generating from prompt: %s\n", prompt)
 
@@ -206,7 +203,7 @@ func (s *Service) AIStruct(ctx context.Context, prompt, outPath string, opts cor
 func (s *Service) applyDirectly(ctx context.Context, tree *core.Tree, outPath, prompt string, opts core.AIOptions) error {
 	fmt.Printf("\n📁 Generating project folder: %s\n", outPath)
 
-	if err := s.Validator.Validate(ctx, tree); err != nil {
+	if err := s.Validator.ValidateWithOptions(ctx, tree, opts.AllowReserved); err != nil {
 		return fmt.Errorf("validation failed: %w", err)
 	}
 
@@ -273,13 +270,12 @@ func displayTree(n *core.Node, depth int) {
 	}
 }
 
-// MStruct generates project from .struct blueprint file
 func (s *Service) MStruct(ctx context.Context, structFile, outputDir string, opts core.GenerateOptions) (core.Receipt, error) {
 	tree, err := s.Parser.Parse(ctx, structFile)
 	if err != nil {
 		return core.Receipt{}, err
 	}
-	if err := s.Validator.Validate(ctx, tree); err != nil {
+	if err := s.Validator.ValidateWithOptions(ctx, tree, opts.AllowReserved); err != nil {
 		return core.Receipt{}, err
 	}
 	receipt, err := s.Writer.Generate(ctx, tree, outputDir, opts)
@@ -297,7 +293,6 @@ func (s *Service) MStruct(ctx context.Context, structFile, outputDir string, opt
 	return receipt, nil
 }
 
-// RStruct reverse engineers a project folder into .struct blueprint
 func (s *Service) RStruct(ctx context.Context, inputDir string, outPath string) error {
 	tree, err := s.Reverser.Reverse(ctx, inputDir)
 	if err != nil {
@@ -314,11 +309,9 @@ func (s *Service) RStruct(ctx context.Context, inputDir string, outPath string) 
 	return nil
 }
 
-// NormalizeStruct using converter system with AI normalization
 func (s *Service) NormalizeStruct(ctx context.Context, inputContent, outPath string, opts core.AIOptions) error {
 	fmt.Println("📄 Starting normalization with converter system...")
 
-	// Converter with auto-detection + AI fallback
 	converter := converter.NewWithAI(s.Gen.Provider, s.Parser, converter.ModeAuto)
 
 	tree, detected, err := converter.Convert(ctx, inputContent)
@@ -367,7 +360,6 @@ func (s *Service) NormalizeStruct(ctx context.Context, inputContent, outPath str
 	return nil
 }
 
-// Watch syncs project ↔ blueprint in realtime
 func (s *Service) Watch(ctx context.Context, projectPath, blueprintPath string, debounce time.Duration, verbose bool) error {
 	w := watcher.New()
 	cfg := watcher.SyncConfig{
