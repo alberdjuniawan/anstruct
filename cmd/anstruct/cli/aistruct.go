@@ -42,7 +42,6 @@ Examples:
 		RunE: func(cmd *cobra.Command, args []string) error {
 			prompt := strings.Join(args, " ")
 
-			// Resolve output path with smart detection
 			outFile = resolveAIOutputPath(outFile, apply)
 
 			isStructOutput := strings.HasSuffix(outFile, ".struct")
@@ -87,15 +86,7 @@ Examples:
 	return cmd
 }
 
-// resolveAIOutputPath determines the correct output path
-// Examples:
-//
-//	""           -> "aistruct.struct" (blueprint) or "./aiproject" (apply)
-//	"./beto"     -> "beto.struct" (blueprint) or "./beto" (apply)
-//	"./beto/"    -> "./beto/aistruct.struct" (blueprint) or "./beto/aiproject" (apply)
-//	"out.struct" -> "out.struct" (blueprint only)
 func resolveAIOutputPath(outArg string, apply bool) string {
-	// Default behavior
 	if outArg == "" {
 		if apply {
 			return "./aiproject"
@@ -105,12 +96,10 @@ func resolveAIOutputPath(outArg string, apply bool) string {
 
 	clean := filepath.Clean(outArg)
 
-	// If already ends with .struct, use as-is (blueprint mode only)
 	if strings.HasSuffix(clean, ".struct") {
 		return clean
 	}
 
-	// Check if it's a directory (ends with / or \ or is existing dir)
 	isDir := strings.HasSuffix(outArg, "/") || strings.HasSuffix(outArg, "\\")
 	if !isDir {
 		if info, err := os.Stat(clean); err == nil && info.IsDir() {
@@ -118,7 +107,6 @@ func resolveAIOutputPath(outArg string, apply bool) string {
 		}
 	}
 
-	// If directory path
 	if isDir {
 		if apply {
 			return filepath.Join(clean, "aiproject")
@@ -126,14 +114,12 @@ func resolveAIOutputPath(outArg string, apply bool) string {
 		return filepath.Join(clean, "aistruct.struct")
 	}
 
-	// Plain name without extension
 	if filepath.Ext(clean) == "" {
 		if apply {
-			return clean // Use as folder name
+			return clean
 		}
-		return clean + ".struct" // Add .struct extension
+		return clean + ".struct"
 	}
 
-	// Has other extension, use as-is
 	return clean
 }
