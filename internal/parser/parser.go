@@ -182,7 +182,7 @@ func countIndent(s string) int {
 	}
 
 	if spaces > 0 && !warnedSpaces {
-		fmt.Println("Warning: indentasi pakai spasi, disarankan pakai tab untuk konsistensi")
+		fmt.Println("Warning: indentation uses spaces; using tabs is recommended for consistency.")
 		warnedSpaces = true
 	}
 
