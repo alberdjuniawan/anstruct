@@ -9,61 +9,49 @@ import (
 	"github.com/alberdjuniawan/anstruct/internal/core"
 )
 
-// Converter converts various structure formats to .struct format
 type Converter struct {
 	Normalizer *Normalizer
 }
 
-// New creates a converter without AI (manual mode only)
 func New() *Converter {
 	return &Converter{
 		Normalizer: NewNormalizer(nil, nil, ModeManual),
 	}
 }
 
-// NewWithAI creates a converter with AI support
 func NewWithAI(provider ai.Provider, parser core.Parser, mode NormalizationMode) *Converter {
 	return &Converter{
 		Normalizer: NewNormalizer(provider, parser, mode),
 	}
 }
 
-// Convert converts any supported format to .struct using configured mode
 func (c *Converter) Convert(ctx context.Context, input string) (*core.Tree, DetectedFormat, error) {
-	// If normalizer has AI, use smart conversion
 	if c.Normalizer.Provider != nil {
 		return c.convertWithAI(ctx, input)
 	}
 
-	// Otherwise use manual detection and parsing
 	return c.convertManual(ctx, input)
 }
 
-// convertWithAI uses AI normalization first
 func (c *Converter) convertWithAI(ctx context.Context, input string) (*core.Tree, DetectedFormat, error) {
-	// Detect input quality
 	quality := c.Normalizer.DetectQuality(input)
 	format := c.DetectFormat(input)
 
 	fmt.Printf("📊 Input quality score: %d/100\n", quality)
 	fmt.Printf("🔍 Detected format: %s\n", format)
 
-	// Suggest mode based on quality
 	suggestedMode := c.Normalizer.SuggestMode(input)
 	if c.Normalizer.Mode == ModeAuto {
 		fmt.Printf("💡 Suggested mode: %s\n", suggestedMode)
 	}
 
-	// Normalize with configured mode
 	normalized, err := c.Normalizer.Normalize(ctx, input)
 	if err != nil {
 		return nil, format, fmt.Errorf("normalization failed: %w", err)
 	}
 
-	// Parse normalized output
 	parser := c.Normalizer.Parser
 	if parser == nil {
-		// Fallback to manual parsing if no parser provided
 		return c.parseNormalized(normalized, format)
 	}
 
@@ -75,7 +63,6 @@ func (c *Converter) convertWithAI(ctx context.Context, input string) (*core.Tree
 	return tree, format, nil
 }
 
-// convertManual uses original manual conversion
 func (c *Converter) convertManual(ctx context.Context, input string) (*core.Tree, DetectedFormat, error) {
 	format := c.DetectFormat(input)
 
@@ -93,7 +80,6 @@ func (c *Converter) convertManual(ctx context.Context, input string) (*core.Tree
 	}
 }
 
-// DetectedFormat represents the input format type
 type DetectedFormat string
 
 const (
@@ -105,7 +91,6 @@ const (
 	FormatUnknown  DetectedFormat = "unknown"
 )
 
-// DetectFormat automatically detects the input format
 func (c *Converter) DetectFormat(input string) DetectedFormat {
 	input = strings.TrimSpace(input)
 
@@ -125,7 +110,6 @@ func (c *Converter) DetectFormat(input string) DetectedFormat {
 	return FormatPlain
 }
 
-// convertTreeFormat converts tree command output (manual parsing)
 func (c *Converter) convertTreeFormat(input string) (*core.Tree, DetectedFormat, error) {
 	lines := strings.Split(input, "\n")
 	rootName := "project"
@@ -163,13 +147,11 @@ func (c *Converter) convertTreeFormat(input string) (*core.Tree, DetectedFormat,
 	return c.parseCleanedLines(root, cleaned)
 }
 
-// convertMarkdownFormat converts markdown tree blocks
 func (c *Converter) convertMarkdownFormat(input string) (*core.Tree, DetectedFormat, error) {
 	input = strings.ReplaceAll(input, "```", "")
 	return c.convertTreeFormat(input)
 }
 
-// convertLsFormat converts ls -R output (simplified)
 func (c *Converter) convertLsFormat(input string) (*core.Tree, DetectedFormat, error) {
 	root := &core.Node{
 		Type:         core.NodeDir,
@@ -179,7 +161,6 @@ func (c *Converter) convertLsFormat(input string) (*core.Tree, DetectedFormat, e
 	return &core.Tree{Root: root}, FormatLs, nil
 }
 
-// convertPlainFormat converts plain indented text
 func (c *Converter) convertPlainFormat(input string) (*core.Tree, DetectedFormat, error) {
 	lines := strings.Split(input, "\n")
 	rootName := "project"
@@ -200,7 +181,6 @@ func (c *Converter) convertPlainFormat(input string) (*core.Tree, DetectedFormat
 	return c.parseCleanedLines(root, lines)
 }
 
-// parseNormalized parses AI-normalized text into a tree
 func (c *Converter) parseNormalized(normalized string, format DetectedFormat) (*core.Tree, DetectedFormat, error) {
 	lines := strings.Split(normalized, "\n")
 	rootName := "project"
@@ -221,7 +201,6 @@ func (c *Converter) parseNormalized(normalized string, format DetectedFormat) (*
 	return c.parseCleanedLines(root, lines)
 }
 
-// parseCleanedLines converts cleaned lines to tree structure
 func (c *Converter) parseCleanedLines(root *core.Node, lines []string) (*core.Tree, DetectedFormat, error) {
 	type frame struct {
 		node  *core.Node
@@ -281,7 +260,6 @@ func (c *Converter) parseCleanedLines(root *core.Node, lines []string) (*core.Tr
 	return &core.Tree{Root: root}, FormatPlain, nil
 }
 
-// ConvertToString converts tree to .struct format string
 func (c *Converter) ConvertToString(tree *core.Tree) string {
 	var b strings.Builder
 
@@ -305,7 +283,6 @@ func (c *Converter) ConvertToString(tree *core.Tree) string {
 	return b.String()
 }
 
-// Helpers
 func removeTreeSymbols(line string) string {
 	symbols := []string{"├──", "└──", "│", "├─", "└─", "─"}
 	for _, sym := range symbols {
