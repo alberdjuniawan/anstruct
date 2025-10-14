@@ -109,11 +109,11 @@ anstruct watch ./myapp ./myapp.struct --half folder
 
 ## Documentation
 
-You can find full guides and references in the [Documentation file](https://github.com/alberdjuniawan/anstruct/docs/DOCUMENTATION.md). It covers everything from basic usage to advanced features — including CLI commands, structure syntax, and AI integration.
+You can find full guides and references in the [Documentation file](https://github.com/alberdjuniawan/anstruct/blob/main/docs/DOCUMENTATION.md). It covers everything from basic usage to advanced features — including CLI commands, structure syntax, and AI integration.
 
 ## Contributing
 
-Contributions are welcome. If you'd like to suggest improvements, fix bugs, or enhance features, please see the [Contributing Guide](https://github.com/alberdjuniawan/anstruct/docs/CONTRIBUTING.md) for details.
+Contributions are welcome. If you'd like to suggest improvements, fix bugs, or enhance features, please see the [Contributing Guide](https://github.com/alberdjuniawan/anstruct/blob/main/docs/CONTRIBUTING.md) for details.
 
 ## License
 
