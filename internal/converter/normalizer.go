@@ -8,24 +8,21 @@ import (
 	"github.com/alberdjuniawan/anstruct/internal/core"
 )
 
-// NormalizationMode determines how to normalize input
 type NormalizationMode string
 
 const (
-	ModeAuto    NormalizationMode = "auto"    // Try AI first, fallback to manual
-	ModeAI      NormalizationMode = "ai"      // AI only (fails if AI unavailable)
-	ModeManual  NormalizationMode = "manual"  // Manual parsing only (offline)
-	ModeOffline NormalizationMode = "offline" // Alias for manual
+	ModeAuto    NormalizationMode = "auto"
+	ModeAI      NormalizationMode = "ai"
+	ModeManual  NormalizationMode = "manual"
+	ModeOffline NormalizationMode = "offline"
 )
 
-// Normalizer handles structure normalization with AI or manual parsing
 type Normalizer struct {
 	Provider ai.Provider
 	Parser   core.Parser
 	Mode     NormalizationMode
 }
 
-// NewNormalizer creates a normalizer with specified mode
 func NewNormalizer(provider ai.Provider, parser core.Parser, mode NormalizationMode) *Normalizer {
 	if mode == "" {
 		mode = ModeAuto
@@ -37,7 +34,6 @@ func NewNormalizer(provider ai.Provider, parser core.Parser, mode NormalizationM
 	}
 }
 
-// Normalize converts messy structure to clean .struct format
 func (n *Normalizer) Normalize(ctx context.Context, messyInput string) (string, error) {
 	switch n.Mode {
 	case ModeAI:
@@ -47,13 +43,11 @@ func (n *Normalizer) Normalize(ctx context.Context, messyInput string) (string, 
 		return n.normalizeManual(messyInput)
 
 	case ModeAuto:
-		// Try AI first
 		result, err := n.normalizeWithAI(ctx, messyInput)
 		if err == nil {
 			return result, nil
 		}
 
-		// Fallback to manual
 		fmt.Println("⚠️  AI normalization failed, falling back to manual parsing...")
 		return n.normalizeManual(messyInput)
 
@@ -62,27 +56,21 @@ func (n *Normalizer) Normalize(ctx context.Context, messyInput string) (string, 
 	}
 }
 
-// normalizeWithAI uses AI to normalize the structure
 func (n *Normalizer) normalizeWithAI(ctx context.Context, input string) (string, error) {
 	if n.Provider == nil {
 		return "", fmt.Errorf("AI provider not available")
 	}
 
-	// Build normalization prompt
 	prompt := ai.BuildNormalizationPrompt(input)
 
-	// Get normalized output from AI
 	normalized, err := n.Provider.GenerateBlueprint(ctx, prompt)
 	if err != nil {
 		return "", fmt.Errorf("AI normalization failed: %w", err)
 	}
 
-	// Clean AI output (remove markdown, etc)
 	cleaned := ai.CleanAIOutput(normalized)
 
-	// Validate output
 	if err := ai.ValidateStructOutput(cleaned); err != nil {
-		// Try one more time with correction
 		retryPrompt := ai.RetryPrompt(input, err)
 		normalized, retryErr := n.Provider.GenerateBlueprint(ctx, retryPrompt)
 		if retryErr != nil {
@@ -91,7 +79,6 @@ func (n *Normalizer) normalizeWithAI(ctx context.Context, input string) (string,
 		cleaned = ai.CleanAIOutput(normalized)
 	}
 
-	// Final validation
 	if err := ai.ValidateStructOutput(cleaned); err != nil {
 		return "", fmt.Errorf("AI produced invalid output: %w", err)
 	}
@@ -99,32 +86,25 @@ func (n *Normalizer) normalizeWithAI(ctx context.Context, input string) (string,
 	return cleaned, nil
 }
 
-// normalizeManual uses regex and parsing to normalize (offline mode)
 func (n *Normalizer) normalizeManual(input string) (string, error) {
-	// Use the existing manual converter logic
 	conv := New()
 
-	// Convert to tree structure
 	tree, _, err := conv.Convert(context.Background(), input)
 	if err != nil {
 		return "", fmt.Errorf("manual normalization failed: %w", err)
 	}
 
-	// Convert tree back to clean .struct format
 	normalized := conv.ConvertToString(tree)
 
 	return normalized, nil
 }
 
-// NormalizeToTree normalizes input and returns tree structure
 func (n *Normalizer) NormalizeToTree(ctx context.Context, input string) (*core.Tree, error) {
-	// Get normalized string
 	normalized, err := n.Normalize(ctx, input)
 	if err != nil {
 		return nil, err
 	}
 
-	// Parse to tree
 	tree, err := n.Parser.ParseString(ctx, normalized)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse normalized output: %w", err)
@@ -133,26 +113,23 @@ func (n *Normalizer) NormalizeToTree(ctx context.Context, input string) (*core.T
 	return tree, nil
 }
 
-// DetectQuality scores the input quality (0-100)
-// Higher score = easier to parse manually, lower score = needs AI
 func (n *Normalizer) DetectQuality(input string) int {
 	score := 100
 
-	// Penalties for messy input
 	if containsTreeSymbols(input) {
-		score -= 30 // Tree symbols hard to parse
+		score -= 30
 	}
 	if hasInconsistentIndentation(input) {
-		score -= 20 // Mixed indentation problematic
+		score -= 20
 	}
 	if hasMixedSlashes(input) {
-		score -= 15 // Inconsistent folder markers
+		score -= 15
 	}
 	if hasLineNumbers(input) {
-		score -= 10 // Extra text to clean
+		score -= 10
 	}
 	if len(input) > 5000 {
-		score -= 10 // Very large, complex
+		score -= 10
 	}
 
 	if score < 0 {
@@ -162,20 +139,17 @@ func (n *Normalizer) DetectQuality(input string) int {
 	return score
 }
 
-// SuggestMode suggests best normalization mode based on input
 func (n *Normalizer) SuggestMode(input string) NormalizationMode {
 	quality := n.DetectQuality(input)
 
 	if quality >= 70 {
-		return ModeManual // Clean enough for manual parsing
+		return ModeManual
 	} else if quality >= 40 {
-		return ModeAuto // Try AI, fallback to manual
+		return ModeAuto
 	} else {
-		return ModeAI // Too messy, needs AI
+		return ModeAI
 	}
 }
-
-// Helper functions for quality detection
 
 func containsTreeSymbols(s string) bool {
 	symbols := []string{"├", "└", "│", "─"}
@@ -209,7 +183,6 @@ func hasInconsistentIndentation(s string) bool {
 }
 
 func hasMixedSlashes(s string) bool {
-	// Check if some folders have / and some don't
 	lines := splitLines(s)
 	hasSlash := 0
 	noSlash := 0
@@ -220,12 +193,10 @@ func hasMixedSlashes(s string) bool {
 			continue
 		}
 
-		// Skip if looks like a file (has extension)
 		if hasExtension(trimmed) {
 			continue
 		}
 
-		// Count folders with/without slash
 		if trimmed[len(trimmed)-1] == '/' {
 			hasSlash++
 		} else {
@@ -241,7 +212,6 @@ func hasLineNumbers(s string) bool {
 	for _, line := range lines {
 		trimmed := trimLeft(line)
 		if len(trimmed) > 0 && trimmed[0] >= '0' && trimmed[0] <= '9' {
-			// Check if followed by dot or closing paren
 			for i, ch := range trimmed {
 				if ch == '.' || ch == ')' {
 					if i > 0 && i < len(trimmed)-1 {
@@ -257,7 +227,7 @@ func hasLineNumbers(s string) bool {
 func hasExtension(s string) bool {
 	for i := len(s) - 1; i >= 0; i-- {
 		if s[i] == '.' {
-			return i < len(s)-1 // Has something after dot
+			return i < len(s)-1
 		}
 		if s[i] == '/' || s[i] == '\\' {
 			return false
