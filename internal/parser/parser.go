@@ -1,4 +1,4 @@
-package parser
+\package parser
 
 import (
 	"bufio"
@@ -98,22 +98,21 @@ func parseScanner(scanner *bufio.Scanner, rootName string) (*core.Tree, error) {
 			tmp = strings.TrimSuffix(tmp, "/")
 		}
 
-		isFileByExt := strings.Contains(tmp, ".")
-
 		name := sanitize(tmp)
 		if name == "" || name == "_" {
 			return nil, fmt.Errorf("invalid entry name at line %d: %q", lineNum, entry)
 		}
 
+
 		n := &core.Node{
-			Type:         core.NodeDir,
+			Type:         core.NodeFile,
 			Name:         name,
 			OriginalName: entry,
 			Content:      "",
 		}
 
-		if isFileByExt && !explicitDir {
-			n.Type = core.NodeFile
+		if explicitDir {
+			n.Type = core.NodeDir
 		}
 
 		parentDepth := stack[len(stack)-1].depth
