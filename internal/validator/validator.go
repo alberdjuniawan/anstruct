@@ -14,29 +14,24 @@ type Validator struct{}
 
 func New() *Validator { return &Validator{} }
 
-// Validate validates tree and removes reserved names with warnings
 func (v *Validator) Validate(ctx context.Context, tree *core.Tree) error {
 	return v.ValidateWithOptions(ctx, tree, false)
 }
 
-// ValidateWithOptions validates tree with configurable reserved name handling
 func (v *Validator) ValidateWithOptions(ctx context.Context, tree *core.Tree, allowReserved bool) error {
 	seen := map[string]bool{}
 	var err error
 	var skipped []string
 
-	// First pass: collect reserved names to skip
 	walk(tree.Root, "", func(path string, n *core.Node) {
 		if isReserved(n.Name) {
 			skipped = append(skipped, n.Name)
 		}
 	})
 
-	// Remove reserved nodes from tree
 	if len(skipped) > 0 {
 		cleanReservedNodes(tree.Root)
 
-		// Print warning
 		fmt.Println("\n⚠️  Reserved names detected and skipped:")
 		for _, name := range skipped {
 			fmt.Printf("   ⏭️  %s (managed by package manager/git)\n", name)
@@ -44,7 +39,6 @@ func (v *Validator) ValidateWithOptions(ctx context.Context, tree *core.Tree, al
 		fmt.Println("💡 These folders are typically auto-generated and shouldn't be in blueprints.\n")
 	}
 
-	// Second pass: validate remaining nodes
 	walk(tree.Root, "", func(path string, n *core.Node) {
 		if seen[path] {
 			err = errors.New("duplicate path: " + path)
@@ -61,18 +55,15 @@ func (v *Validator) ValidateWithOptions(ctx context.Context, tree *core.Tree, al
 	return err
 }
 
-// cleanReservedNodes removes reserved children from tree
 func cleanReservedNodes(n *core.Node) {
 	if n == nil {
 		return
 	}
 
-	// Filter out reserved children
 	filtered := make([]*core.Node, 0, len(n.Children))
 	for _, child := range n.Children {
 		if !isReserved(child.Name) {
 			filtered = append(filtered, child)
-			// Recursively clean children
 			cleanReservedNodes(child)
 		}
 	}
@@ -93,20 +84,18 @@ func walk(n *core.Node, prefix string, fn func(path string, n *core.Node)) {
 }
 
 func isReserved(name string) bool {
-	// Reserved directories that are auto-generated
-	// These should NOT be in blueprints as they're managed by tools
 	reserved := []string{
-		".git",         // Git repository
-		"node_modules", // npm/yarn packages
-		"vendor",       // PHP Composer/Go modules
-		".next",        // Next.js build
-		".nuxt",        // Nuxt.js build
-		"dist",         // Build output
-		"build",        // Build output
-		".cache",       // Cache directories
-		"__pycache__",  // Python cache
-		".venv",        // Python virtual env
-		"venv",         // Python virtual env
+		".git",
+		"node_modules",
+		"vendor",
+		".next",
+		".nuxt",
+		"dist",
+		"build",
+		".cache",
+		"__pycache__",
+		".venv",
+		"venv",
 	}
 
 	for _, r := range reserved {
