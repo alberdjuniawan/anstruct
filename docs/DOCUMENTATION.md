@@ -579,12 +579,22 @@ anstruct mstruct project.struct -o ./project
 
 ## Configuration
 
+### AI Endpoint
+
+```bash
+# By default, Anstruct uses the official AI proxy hosted by Alberd for Gemini integration:
+https://anstruct-ai-proxy.anstruct.workers.dev/generate
+# You don’t need to configure anything — it works out of the box.
+
+# Optionally, you can override the endpoint via environment variable:
+export ANSTRUCT_AI_ENDPOINT="https://your-custom-endpoint.com/generate"
+```
+
+If you prefer to use your own AI proxy, see the setup guide [here](https://github.com/alberdjuniawan/anstruct-ai-proxy)
+
 ### Environment Variables
 
 ```bash
-# AI endpoint (optional, uses default if not set)
-export ANSTRUCT_AI_ENDPOINT="https://your-custom-endpoint.com/generate"
-
 # History file location
 export ANSTRUCT_HISTORY_PATH="$HOME/.anstruct/history.log"
 ```
